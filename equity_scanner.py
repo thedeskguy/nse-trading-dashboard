@@ -17,6 +17,8 @@ from tools.fetch_stock_data import fetch_ohlcv
 from tools.compute_indicators import compute_all
 from tools.generate_signals import generate_signal
 from tools.theme import inject_css, signal_badge, page_header, SIGNAL_COLORS
+from tools.fetch_fundamentals import fetch_fundamentals, score_fundamentals
+from tools.ml_predictor import train_and_predict
 
 # ── Stock universe ─────────────────────────────────────────────────────────────
 
@@ -317,6 +319,173 @@ def confidence_bar(confidence: int) -> str:
     return "█" * filled + "░" * (20 - filled) + f"  {confidence}%"
 
 
+# ── Fundamentals + ML cache wrappers ──────────────────────────────────────────
+
+@st.cache_data(ttl=3600)
+def load_fundamentals_eq(ticker: str) -> dict:
+    return fetch_fundamentals(ticker)
+
+
+@st.cache_data(ttl=300)
+def load_prediction_eq(ticker: str):
+    df = fetch_ohlcv(ticker, interval="1d", period="2y")
+    df = compute_all(df)
+    return train_and_predict(df)
+
+
+# ── Fundamentals render ────────────────────────────────────────────────────────
+def render_fundamentals_eq(ticker: str, last_price: float) -> None:
+    with st.spinner("Loading fundamental data…"):
+        data = load_fundamentals_eq(ticker)
+    result = score_fundamentals(data, current_price=last_price)
+    score = result["score"]
+    grade = result["grade"]
+    breakdown = result["breakdown"]
+
+    grade_color = {"Strong": "#00C851", "Fair": "#ffbb33", "Weak": "#ff4444"}[grade]
+    st.markdown(
+        f"""
+        <div style="background:{grade_color}18; border:2px solid {grade_color};
+                    border-radius:12px; padding:16px 24px; margin-bottom:16px; display:flex;
+                    align-items:center; gap:24px;">
+            <div>
+                <div style="font-size:2rem; font-weight:800; color:{grade_color};">{grade}</div>
+                <div style="color:{grade_color}; opacity:0.85;">Fundamental Score: {score}/100</div>
+            </div>
+            <div style="flex:1;">
+                <div style="background:rgba(255,255,255,0.08); border-radius:8px; height:10px; overflow:hidden;">
+                    <div style="width:{score}%; background:{grade_color}; height:100%; border-radius:8px;"></div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("#### Score Breakdown")
+    bd_cols = st.columns(len(breakdown))
+    for col, (name, v) in zip(bd_cols, breakdown.items()):
+        col.metric(name, f"{v['points']}/{v['max']}", help=v["label"])
+
+    st.divider()
+
+    def _fmt(val, suffix="", prefix=""):
+        return f"{prefix}{val:.2f}{suffix}" if val is not None else "—"
+    def _pct(val):
+        return f"{val*100:.1f}%" if val is not None else "—"
+
+    st.markdown("#### Valuation")
+    v1, v2, v3, v4, v5 = st.columns(5)
+    v1.metric("Trailing PE",  _fmt(data["pe_trailing"],  "x"))
+    v2.metric("Forward PE",   _fmt(data["pe_forward"],   "x"))
+    v3.metric("Price / Book", _fmt(data["pb_ratio"],     "x"))
+    v4.metric("PEG Ratio",    _fmt(data["peg_ratio"],    "x"))
+    v5.metric("EV / EBITDA",  _fmt(data["ev_ebitda"],    "x"))
+
+    st.markdown("#### Profitability")
+    p1, p2, p3, p4 = st.columns(4)
+    p1.metric("ROE",          _pct(data["roe"]))
+    p2.metric("ROA",          _pct(data["roa"]))
+    p3.metric("Net Margin",   _pct(data["profit_margin"]))
+    p4.metric("Gross Margin", _pct(data["gross_margin"]))
+
+    g1, g2, h1, h2, h3 = st.columns(5)
+    g1.metric("Revenue Growth",  _pct(data["revenue_growth"]))
+    g2.metric("Earnings Growth", _pct(data["earnings_growth"]))
+    h1.metric("Debt / Equity",   _fmt(data["debt_to_equity"]))
+    h2.metric("Current Ratio",   _fmt(data["current_ratio"]))
+    h3.metric("Quick Ratio",     _fmt(data["quick_ratio"]))
+
+    st.divider()
+    st.markdown("#### Analyst View")
+    a1, a2, a3 = st.columns(3)
+    rec = (data.get("recommendation") or "—").replace("_", " ").title()
+    a1.metric("Recommendation", rec)
+    target = data.get("target_price")
+    upside_str = None
+    if target and last_price:
+        upside = (target - last_price) / last_price * 100
+        upside_str = f"{upside:+.1f}%"
+    a2.metric("Target Price", _fmt(target, prefix="₹") if target else "—", delta=upside_str)
+    a3.metric("Analyst Count", str(data.get("analyst_count") or "—"))
+
+    st.divider()
+    i1, i2, i3, i4 = st.columns(4)
+    mcap = data.get("market_cap")
+    mcap_str = f"₹{mcap/1e7:,.0f} Cr" if mcap else "—"
+    i1.metric("Market Cap", mcap_str)
+    i2.metric("Beta",       _fmt(data.get("beta")))
+    i3.metric("Sector",     data.get("sector") or "—")
+    i4.metric("Industry",   data.get("industry") or "—")
+
+
+# ── ML prediction render ───────────────────────────────────────────────────────
+def render_ml_prediction_eq(ticker: str) -> None:
+    with st.spinner("Training ML model…"):
+        result = load_prediction_eq(ticker)
+
+    if result.get("error"):
+        st.warning(f"ML model unavailable: {result['error']}")
+        return
+
+    direction  = result["direction"]
+    probability = result["probability"]
+    accuracy   = result["accuracy"]
+    importance = result["feature_importance"]
+
+    dir_color = "#00C851" if direction == "UP" else "#ff4444"
+    dir_icon  = "▲" if direction == "UP" else "▼"
+
+    st.markdown(
+        f"""
+        <div style="background:{dir_color}18; border:2px solid {dir_color};
+                    border-radius:12px; padding:16px 24px; margin-bottom:16px;">
+            <div style="font-size:2rem; font-weight:800; color:{dir_color};">
+                {dir_icon} {direction}
+            </div>
+            <div style="color:{dir_color}; opacity:0.85; margin-bottom:10px;">
+                Predicted next-day direction · Confidence: {probability*100:.1f}%
+            </div>
+            <div style="background:rgba(255,255,255,0.08); border-radius:8px; height:10px; overflow:hidden;">
+                <div style="width:{probability*100:.1f}%; background:{dir_color}; height:100%; border-radius:8px;"></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Prediction",       direction)
+    m2.metric("Confidence",       f"{probability*100:.1f}%")
+    m3.metric("Backtest Accuracy", f"{accuracy*100:.1f}%",
+              help=f"Test-set accuracy on {result['test_samples']} held-out days")
+
+    st.divider()
+    st.markdown("#### What drove this prediction")
+    sorted_imp = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:8]
+    labels = [k.replace("_", " ").title() for k, _ in sorted_imp]
+    values = [v for _, v in sorted_imp]
+
+    fig = go.Figure(go.Bar(
+        x=values, y=labels, orientation="h",
+        marker_color="#00d4a0",
+        text=[f"{v*100:.1f}%" for v in values],
+        textposition="outside",
+    ))
+    fig.update_layout(
+        template="plotly_dark", height=320,
+        xaxis_title="Importance", yaxis=dict(autorange="reversed"),
+        margin=dict(l=10, r=60, t=20, b=30),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.caption(
+        f"Model: Random Forest (100 trees) · Trained on {result['train_samples']} days · "
+        f"Tested on {result['test_samples']} days · "
+        "⚠️ ML predictions are probabilistic. Not financial advice."
+    )
+
+
 # ── Main app ───────────────────────────────────────────────────────────────────
 
 def main():
@@ -579,22 +748,28 @@ def main():
                 f"ATR: {atr:.2f}"
             )
 
-            # Indicator breakdown
-            with st.expander("Indicator Breakdown", expanded=False):
-                comp_rows = []
-                for ind_name, v in sig["components"].items():
-                    pts = v["points"]
-                    comp_rows.append({
-                        "Indicator": ind_name,
-                        "Value":     str(v["value"]),
-                        "Signal":    v["signal"],
-                        "Points":    f"{pts:+d}",
-                    })
-                st.dataframe(pd.DataFrame(comp_rows), hide_index=True, use_container_width=True)
+            tab_tech, tab_fund, tab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
 
-            # Full chart
-            fig = build_stock_chart(df, sig, selected_name)
-            st.plotly_chart(fig, use_container_width=True)
+            with tab_tech:
+                with st.expander("Indicator Breakdown", expanded=False):
+                    comp_rows = []
+                    for ind_name, v in sig["components"].items():
+                        pts = v["points"]
+                        comp_rows.append({
+                            "Indicator": ind_name,
+                            "Value":     str(v["value"]),
+                            "Signal":    v["signal"],
+                            "Points":    f"{pts:+d}",
+                        })
+                    st.dataframe(pd.DataFrame(comp_rows), hide_index=True, use_container_width=True)
+                fig = build_stock_chart(df, sig, selected_name)
+                st.plotly_chart(fig, use_container_width=True)
+
+            with tab_fund:
+                render_fundamentals_eq(sig["ticker"], price)
+
+            with tab_ml:
+                render_ml_prediction_eq(sig["ticker"])
 
     # ── Custom stock search result ────────────────────────────────────────────
     custom_ticker = st.session_state.get("custom_ticker")
@@ -628,8 +803,15 @@ def main():
                 f'Entry ₹{price:,.2f} | SL ₹{sl:,.2f} | Target ₹{target:,.2f}</div>',
                 unsafe_allow_html=True,
             )
-            fig_c = build_stock_chart(df_c, custom_sig, custom_name)
-            st.plotly_chart(fig_c, use_container_width=True)
+
+            ctab_tech, ctab_fund, ctab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
+            with ctab_tech:
+                fig_c = build_stock_chart(df_c, custom_sig, custom_name)
+                st.plotly_chart(fig_c, use_container_width=True)
+            with ctab_fund:
+                render_fundamentals_eq(custom_ticker, price)
+            with ctab_ml:
+                render_ml_prediction_eq(custom_ticker)
         elif custom_sig and "error" in custom_sig:
             st.error(f"Could not load {custom_ticker}: {custom_sig['error']}")
 

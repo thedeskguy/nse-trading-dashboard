@@ -36,12 +36,12 @@ def get_recommendation(symbol: str, expiry: str = None) -> dict:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def get_chain(symbol: str, expiry: str = None) -> dict | None:
+def get_chain(symbol: str, expiry: str = None) -> dict:
     """Fetch raw options chain for visualization."""
     try:
         return fetch_options_chain(symbol, expiry=expiry)
     except Exception as e:
-        return None
+        return {"error": str(e)}
 
 
 # ── Option chain OI chart ──────────────────────────────────────────────────────
@@ -237,8 +237,10 @@ def render_index_tab(label: str, symbol: str):
     with st.spinner(f"Loading {label} expiry dates..."):
         meta = get_chain(symbol)  # fast, cached; used only for expiry_dates
 
-    if meta is None:
-        st.error(f"Could not load {label} options chain.")
+    if meta is None or "error" in meta:
+        err_msg = (meta or {}).get("error", "Unknown error")
+        st.error(f"Could not load {label} options chain: {err_msg}")
+        st.info("This usually means the Angel One session expired. Click **Reset Session** in the sidebar and then **Refresh Now**.")
         return
 
     expiry_dates = meta.get("expiry_dates", [])
@@ -411,6 +413,11 @@ def main():
         else:
             st.caption("Auto-refresh is off.")
         if st.button("🔄 Refresh Now", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+        if st.button("🔑 Reset Angel One Session", use_container_width=True):
+            from tools.angel_auth import reset_session
+            reset_session()
             st.cache_data.clear()
             st.rerun()
 
