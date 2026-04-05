@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Dark rounded background -->
+  <rect width="100" height="100" rx="18" ry="18" fill="#111111"/>
+
+  <!-- Monitor screen (teal) -->
+  <rect x="52" y="28" width="28" height="20" rx="2" ry="2" fill="none" stroke="#00d4a0" stroke-width="2.5"/>
+  <!-- Screen content lines -->
+  <line x1="55" y1="33" x2="77" y2="33" stroke="#00d4a0" stroke-width="1.5"/>
+  <line x1="55" y1="38" x2="73" y2="38" stroke="#00d4a0" stroke-width="1.5"/>
+  <line x1="55" y1="43" x2="69" y2="43" stroke="#00d4a0" stroke-width="1.5"/>
+  <!-- Monitor stand -->
+  <line x1="66" y1="48" x2="66" y2="54" stroke="#00d4a0" stroke-width="2"/>
+  <line x1="60" y1="54" x2="72" y2="54" stroke="#00d4a0" stroke-width="2"/>
+
+  <!-- Desk surface (teal) -->
+  <line x1="30" y1="55" x2="85" y2="55" stroke="#00d4a0" stroke-width="2.5"/>
+  <!-- Desk leg -->
+  <line x1="82" y1="55" x2="82" y2="78" stroke="#00d4a0" stroke-width="2.5"/>
+
+  <!-- Keyboard -->
+  <rect x="38" y="52" width="16" height="3" rx="1" fill="none" stroke="#00d4a0" stroke-width="1.5"/>
+
+  <!-- Stick figure (white/light) -->
+  <!-- Head -->
+  <circle cx="38" cy="22" r="6" fill="none" stroke="#e0e0e0" stroke-width="2.5"/>
+  <!-- Body -->
+  <line x1="38" y1="28" x2="38" y2="50" stroke="#e0e0e0" stroke-width="2.5"/>
+  <!-- Left arm (desk chair back ghost) -->
+  <line x1="32" y1="30" x2="38" y2="35" stroke="#555555" stroke-width="2"/>
+  <!-- Right arm (reaching desk) -->
+  <line x1="38" y1="35" x2="50" y2="52" stroke="#e0e0e0" stroke-width="2.5"/>
+  <!-- Left leg -->
+  <line x1="38" y1="50" x2="30" y2="68" stroke="#e0e0e0" stroke-width="2.5"/>
+  <!-- Right leg -->
+  <line x1="38" y1="50" x2="45" y2="68" stroke="#e0e0e0" stroke-width="2.5"/>
+</svg>
