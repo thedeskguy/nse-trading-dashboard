@@ -178,6 +178,27 @@ def inject_css() -> None:
         /* ── Captions ────────────────────────────────────────── */
         [data-testid="stCaptionContainer"] { color: #556 !important; }
 
+        /* ── Mobile / responsive ─────────────────────────────── */
+        @media (max-width: 768px) {
+            /* Always show Plotly toolbar on touch screens */
+            .modebar { opacity: 1 !important; }
+            /* Larger touch targets for modebar buttons */
+            .modebar-btn { padding: 8px 10px !important; }
+            /* Stack metric columns on narrow screens */
+            [data-testid="stHorizontalBlock"] {
+                flex-wrap: wrap !important;
+            }
+            [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlockBorderWrapper"] {
+                min-width: 45% !important;
+                flex: 1 1 45% !important;
+            }
+            /* Reduce padding on mobile */
+            .main .block-container {
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+            }
+        }
+
         /* ── Signal badge pulse animations ───────────────────── */
         @keyframes pulse-buy {
             0%, 100% { box-shadow: 0 0 8px rgba(0,200,81,0.3); }

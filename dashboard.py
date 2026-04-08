@@ -20,7 +20,7 @@ from tools.fetch_fundamentals import fetch_fundamentals, score_fundamentals
 from tools.ml_predictor import train_and_predict
 
 # ── Nifty 50 tickers ──────────────────────────────────────────────────────────
-NIFTY50 = {
+NIFTY50 = {  # noqa: E501
     "Reliance Industries":    "RELIANCE.NS",
     "TCS":                    "TCS.NS",
     "HDFC Bank":              "HDFCBANK.NS",
@@ -73,6 +73,84 @@ NIFTY50 = {
     "Sensex Index":           "^BSESN",
 }
 
+# ── Nifty Next 50 + other popular stocks ──────────────────────────────────────
+OTHER_STOCKS = {
+    # Nifty Next 50
+    "Adani Enterprises":      "ADANIENT.NS",
+    "Adani Green Energy":     "ADANIGREEN.NS",
+    "Adani Total Gas":        "ATGL.NS",
+    "Ambuja Cements":         "AMBUJACEM.NS",
+    "AU Small Finance Bank":  "AUBANK.NS",
+    "Berger Paints":          "BERGEPAINT.NS",
+    "Bharat Electronics":     "BEL.NS",
+    "Cholamandalam Finance":  "CHOLAFIN.NS",
+    "Colgate-Palmolive":      "COLPAL.NS",
+    "DLF":                    "DLF.NS",
+    "Godrej Consumer":        "GODREJCP.NS",
+    "Havells India":          "HAVELLS.NS",
+    "HDFC AMC":               "HDFCAMC.NS",
+    "Indian Oil Corp":        "IOC.NS",
+    "Info Edge (Naukri)":     "NAUKRI.NS",
+    "Interglobe Aviation":    "INDIGO.NS",
+    "Jindal Steel":           "JINDALSTEL.NS",
+    "Lupin":                  "LUPIN.NS",
+    "Marico":                 "MARICO.NS",
+    "Muthoot Finance":        "MUTHOOTFIN.NS",
+    "Page Industries":        "PAGEIND.NS",
+    "Pidilite Industries":    "PIDILITIND.NS",
+    "Piramal Enterprises":    "PEL.NS",
+    "Punjab National Bank":   "PNB.NS",
+    "Siemens India":          "SIEMENS.NS",
+    "SRF Ltd":                "SRF.NS",
+    "Torrent Pharma":         "TORNTPHARM.NS",
+    "Trent":                  "TRENT.NS",
+    "Vedanta":                "VEDL.NS",
+    "Voltas":                 "VOLTAS.NS",
+    # Banking & Finance
+    "Bank of Baroda":         "BANKBARODA.NS",
+    "Canara Bank":            "CANBK.NS",
+    "Federal Bank":           "FEDERALBNK.NS",
+    "IDFC First Bank":        "IDFCFIRSTB.NS",
+    "RBL Bank":               "RBLBANK.NS",
+    "Yes Bank":               "YESBANK.NS",
+    # IT & Tech
+    "Coforge":                "COFORGE.NS",
+    "LTIMindtree":            "LTIM.NS",
+    "Mphasis":                "MPHASIS.NS",
+    "Persistent Systems":     "PERSISTENT.NS",
+    # Auto & Infra
+    "Ashok Leyland":          "ASHOKLEY.NS",
+    "Bharat Forge":           "BHARATFORG.NS",
+    "Cummins India":          "CUMMINSIND.NS",
+    "Escorts Kubota":         "ESCORTS.NS",
+    "IRB Infrastructure":     "IRB.NS",
+    "Tata Power":             "TATAPOWER.NS",
+    "Torrent Power":          "TORNTPOWER.NS",
+    # Pharma & Healthcare
+    "Alkem Laboratories":     "ALKEM.NS",
+    "Biocon":                 "BIOCON.NS",
+    "Ipca Laboratories":      "IPCALAB.NS",
+    "Mankind Pharma":         "MANKIND.NS",
+    "Max Healthcare":         "MAXHEALTH.NS",
+    # Consumption & Retail
+    "Avenue Supermarts (DMart)": "DMART.NS",
+    "Jubilant FoodWorks":     "JUBLFOOD.NS",
+    "Oberoi Realty":          "OBEROIRLTY.NS",
+    "Polycab India":          "POLYCAB.NS",
+    "Eternal":                 "ETERNAL.NS",
+    # PSU & Energy
+    "BPCL":                   "BPCL.NS",
+    "GAIL":                   "GAIL.NS",
+    "HPCL":                   "HINDPETRO.NS",
+    "NHPC":                   "NHPC.NS",
+    "Oil India":              "OIL.NS",
+}
+
+STOCK_UNIVERSES = {
+    "Nifty 50": NIFTY50,
+    "Nifty Next 50 & Others": OTHER_STOCKS,
+}
+
 SIGNAL_COLORS = {"BUY": "#00C851", "SELL": "#ff4444", "HOLD": "#ffbb33"}
 
 
@@ -85,12 +163,24 @@ def load_data(ticker: str, interval: str, period: str):
 
 
 # ── Chart builders ─────────────────────────────────────────────────────────────
+def _x_labels(df: pd.DataFrame) -> list:
+    """String x-axis labels so Plotly uses a categorical axis — no weekend/holiday gaps."""
+    idx = df.index
+    try:
+        if len(idx) > 0 and (idx[0].hour != 0 or idx[0].minute != 0):
+            return [ts.strftime('%b %d %H:%M') for ts in idx]
+    except AttributeError:
+        pass
+    return [ts.strftime('%b %d') if hasattr(ts, 'strftime') else str(ts) for ts in idx]
+
+
 def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
     fig = go.Figure()
+    xlabels = _x_labels(df)
 
     # Candlestick
     fig.add_trace(go.Candlestick(
-        x=df.index, open=df["Open"], high=df["High"],
+        x=xlabels, open=df["Open"], high=df["High"],
         low=df["Low"], close=df["Close"],
         name="Price", increasing_line_color="#26a69a", decreasing_line_color="#ef5350",
     ))
@@ -98,11 +188,11 @@ def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
     # Bollinger Bands (shaded)
     if "BB_upper" in df.columns:
         fig.add_trace(go.Scattergl(
-            x=df.index, y=df["BB_upper"], name="BB Upper",
+            x=xlabels, y=df["BB_upper"], name="BB Upper",
             line=dict(color="rgba(150,150,255,0.5)", width=1), showlegend=True,
         ))
         fig.add_trace(go.Scattergl(
-            x=df.index, y=df["BB_lower"], name="BB Lower",
+            x=xlabels, y=df["BB_lower"], name="BB Lower",
             line=dict(color="rgba(150,150,255,0.5)", width=1),
             fill="tonexty", fillcolor="rgba(150,150,255,0.07)", showlegend=True,
         ))
@@ -112,7 +202,7 @@ def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
     for col, color in ema_colors.items():
         if col in df.columns:
             fig.add_trace(go.Scattergl(
-                x=df.index, y=df[col], name=col.replace("_", " "),
+                x=xlabels, y=df[col], name=col.replace("_", " "),
                 line=dict(color=color, width=1.2),
             ))
 
@@ -128,10 +218,11 @@ def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
         title="Price Chart", xaxis_rangeslider_visible=False,
         height=480, template="plotly_dark", legend=dict(orientation="h", y=1.02),
         margin=dict(l=0, r=0, t=40, b=0),
-        dragmode="zoom",
+        dragmode="pan",
         uirevision="price",
-        xaxis=dict(fixedrange=False),
+        xaxis=dict(type="category", fixedrange=False, nticks=7, tickangle=0),
         yaxis=dict(fixedrange=False),
+        transition=dict(duration=0, easing="linear"),
     )
     return fig
 
@@ -146,7 +237,7 @@ def build_rsi_chart(df: pd.DataFrame) -> go.Figure:
     colors = ["#00C851" if v < 30 else "#ff4444" if v > 70 else "#888" for v in rsi]
 
     fig.add_trace(go.Scattergl(
-        x=df.index, y=rsi, name="RSI(14)",
+        x=_x_labels(df), y=rsi, name="RSI(14)",
         line=dict(color="#7B68EE", width=1.5),
     ))
     # Overbought/oversold shading
@@ -159,10 +250,11 @@ def build_rsi_chart(df: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         title="RSI (14)", height=200, template="plotly_dark",
         yaxis=dict(range=[0, 100], fixedrange=False),
-        xaxis=dict(fixedrange=False),
-        dragmode="zoom",
+        xaxis=dict(type="category", fixedrange=False, nticks=7, tickangle=0),
+        dragmode="pan",
         uirevision="rsi",
         margin=dict(l=0, r=0, t=40, b=0), showlegend=False,
+        transition=dict(duration=0, easing="linear"),
     )
     return fig
 
@@ -174,17 +266,18 @@ def build_macd_chart(df: pd.DataFrame) -> go.Figure:
 
     hist = df["MACD_hist"]
     bar_colors = ["#00C851" if v >= 0 else "#ef5350" for v in hist.fillna(0)]
+    xlabels = _x_labels(df)
 
     fig.add_trace(go.Bar(
-        x=df.index, y=hist, name="Histogram",
+        x=xlabels, y=hist, name="Histogram",
         marker_color=bar_colors, opacity=0.7,
     ))
     fig.add_trace(go.Scattergl(
-        x=df.index, y=df["MACD"], name="MACD",
+        x=xlabels, y=df["MACD"], name="MACD",
         line=dict(color="#2196F3", width=1.5),
     ))
     fig.add_trace(go.Scattergl(
-        x=df.index, y=df["MACD_signal"], name="Signal",
+        x=xlabels, y=df["MACD_signal"], name="Signal",
         line=dict(color="#FF9800", width=1.5),
     ))
     fig.add_hline(y=0, line_color="rgba(150,150,150,0.4)", line_width=1)
@@ -193,29 +286,31 @@ def build_macd_chart(df: pd.DataFrame) -> go.Figure:
         title="MACD (12, 26, 9)", height=220, template="plotly_dark",
         margin=dict(l=0, r=0, t=40, b=0),
         legend=dict(orientation="h", y=1.05),
-        dragmode="zoom",
+        dragmode="pan",
         uirevision="macd",
-        xaxis=dict(fixedrange=False),
+        xaxis=dict(type="category", fixedrange=False, nticks=7, tickangle=0),
         yaxis=dict(fixedrange=False),
+        transition=dict(duration=0, easing="linear"),
     )
     return fig
 
 
 def build_volume_obv_chart(df: pd.DataFrame) -> go.Figure:
     fig = make_subplots(specs=[[{"secondary_y": True}]])
+    xlabels = _x_labels(df)
 
     vol_colors = [
         "#26a69a" if df["Close"].iloc[i] >= df["Open"].iloc[i] else "#ef5350"
         for i in range(len(df))
     ]
     fig.add_trace(go.Bar(
-        x=df.index, y=df["Volume"], name="Volume",
+        x=xlabels, y=df["Volume"], name="Volume",
         marker_color=vol_colors, opacity=0.7,
     ), secondary_y=False)
 
     if "OBV" in df.columns:
         fig.add_trace(go.Scattergl(
-            x=df.index, y=df["OBV"], name="OBV",
+            x=xlabels, y=df["OBV"], name="OBV",
             line=dict(color="#E040FB", width=1.5),
         ), secondary_y=True)
 
@@ -223,10 +318,11 @@ def build_volume_obv_chart(df: pd.DataFrame) -> go.Figure:
         title="Volume + OBV", height=220, template="plotly_dark",
         margin=dict(l=0, r=0, t=40, b=0),
         legend=dict(orientation="h", y=1.05),
-        dragmode="zoom",
+        dragmode="pan",
         uirevision="volume",
-        xaxis=dict(fixedrange=False),
+        xaxis=dict(type="category", fixedrange=False, nticks=7, tickangle=0),
         yaxis=dict(fixedrange=False),
+        transition=dict(duration=0, easing="linear"),
     )
     fig.update_yaxes(title_text="Volume", secondary_y=False)
     fig.update_yaxes(title_text="OBV", secondary_y=True)
@@ -560,13 +656,19 @@ def main():
         st.divider()
 
         if section == "📈 Equities":
-            selected_name = st.selectbox("Select Stock (Nifty 50)", list(NIFTY50.keys()))
-            custom_ticker = st.text_input(
+            universe_choice = st.selectbox("Stock Universe", list(STOCK_UNIVERSES.keys()))
+            active_universe = STOCK_UNIVERSES[universe_choice]
+            selected_name = st.selectbox("Select Stock", sorted(active_universe.keys()))
+            raw_custom = st.text_input(
                 "Or enter custom ticker",
-                placeholder="e.g. TATAMOTORS.NS",
-                help="Append .NS for NSE, .BO for BSE",
+                placeholder="e.g. TATAMOTORS",
+                help="Just type the NSE symbol — .NS will be added automatically",
             )
-            ticker = custom_ticker.strip().upper() if custom_ticker.strip() else NIFTY50[selected_name]
+            if raw_custom.strip():
+                _sym = raw_custom.strip().upper().removesuffix(".NS").removesuffix(".BO")
+                ticker = _sym + ".NS"
+            else:
+                ticker = active_universe[selected_name]
             interval = st.selectbox("Interval", ["5m", "15m", "30m", "1h", "1d", "1wk"], index=4)
             valid_periods = VALID_COMBOS[interval]
             period = st.selectbox("Period", valid_periods, index=min(2, len(valid_periods) - 1))
@@ -619,7 +721,7 @@ def main():
 
         tab_tech, tab_fund, tab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
 
-        _zoom_cfg = {"scrollZoom": True, "displayModeBar": True}
+        _zoom_cfg = {"scrollZoom": True, "displayModeBar": True, "plotGlPixelRatio": 1}
         with tab_tech:
             st.plotly_chart(build_price_chart(df, support, resistance), use_container_width=True, config=_zoom_cfg, key="chart_price")
             col_rsi, col_macd = st.columns(2)
