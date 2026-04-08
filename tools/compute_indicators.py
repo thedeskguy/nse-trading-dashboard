@@ -1,66 +1,72 @@
 """
 Compute technical indicators on OHLCV DataFrames.
 All functions are stateless — no I/O, no network calls.
-Uses pandas-ta with explicit Series assignment (pandas 2.x compatible).
+Implemented with pure pandas/numpy (no pandas-ta dependency).
 """
 
 import pandas as pd
 import numpy as np
-import pandas_ta as ta
 
 
 def compute_emas(df: pd.DataFrame, periods: list = None) -> pd.DataFrame:
     if periods is None:
         periods = [9, 21, 50, 200]
     for p in periods:
-        df[f"EMA_{p}"] = ta.ema(df["Close"], length=p)
+        df[f"EMA_{p}"] = df["Close"].ewm(span=p, adjust=False).mean()
     return df
 
 
 def compute_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
-    df[f"RSI_{period}"] = ta.rsi(df["Close"], length=period)
+    delta = df["Close"].diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    df[f"RSI_{period}"] = 100 - (100 / (1 + rs))
     return df
 
 
 def compute_macd(
     df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9
 ) -> pd.DataFrame:
-    macd_df = ta.macd(df["Close"], fast=fast, slow=slow, signal=signal)
-    if macd_df is not None and not macd_df.empty:
-        # pandas-ta names: MACD_12_26_9, MACDh_12_26_9, MACDs_12_26_9
-        col_map = {
-            macd_df.columns[0]: "MACD",
-            macd_df.columns[1]: "MACD_hist",
-            macd_df.columns[2]: "MACD_signal",
-        }
-        macd_df = macd_df.rename(columns=col_map)
-        df["MACD"] = macd_df["MACD"]
-        df["MACD_signal"] = macd_df["MACD_signal"]
-        df["MACD_hist"] = macd_df["MACD_hist"]
+    ema_fast = df["Close"].ewm(span=fast, adjust=False).mean()
+    ema_slow = df["Close"].ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    df["MACD"] = macd_line
+    df["MACD_signal"] = signal_line
+    df["MACD_hist"] = macd_line - signal_line
     return df
 
 
 def compute_bollinger(
     df: pd.DataFrame, period: int = 20, std: float = 2.0
 ) -> pd.DataFrame:
-    bb = ta.bbands(df["Close"], length=period, std=std)
-    if bb is not None and not bb.empty:
-        # pandas-ta names: BBL_20_2.0, BBM_20_2.0, BBU_20_2.0, BBB_20_2.0, BBP_20_2.0
-        df["BB_lower"] = bb.iloc[:, 0]
-        df["BB_middle"] = bb.iloc[:, 1]
-        df["BB_upper"] = bb.iloc[:, 2]
-        df["BB_bandwidth"] = bb.iloc[:, 3]
-        df["BB_pct"] = bb.iloc[:, 4]
+    middle = df["Close"].rolling(window=period).mean()
+    rolling_std = df["Close"].rolling(window=period).std(ddof=0)
+    upper = middle + std * rolling_std
+    lower = middle - std * rolling_std
+    df["BB_lower"] = lower
+    df["BB_middle"] = middle
+    df["BB_upper"] = upper
+    df["BB_bandwidth"] = (upper - lower) / middle
+    df["BB_pct"] = (df["Close"] - lower) / (upper - lower)
     return df
 
 
 def compute_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
-    df[f"ATR_{period}"] = ta.atr(df["High"], df["Low"], df["Close"], length=period)
+    high_low = df["High"] - df["Low"]
+    high_close = (df["High"] - df["Close"].shift()).abs()
+    low_close = (df["Low"] - df["Close"].shift()).abs()
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df[f"ATR_{period}"] = tr.ewm(alpha=1 / period, adjust=False).mean()
     return df
 
 
 def compute_obv(df: pd.DataFrame) -> pd.DataFrame:
-    df["OBV"] = ta.obv(df["Close"], df["Volume"])
+    direction = np.sign(df["Close"].diff()).fillna(0)
+    df["OBV"] = (direction * df["Volume"]).cumsum()
     return df
 
 
@@ -103,19 +109,16 @@ def compute_support_resistance(
                 clusters[-1].append(lvl)
             else:
                 clusters.append([lvl])
-        # Return representative level (mean) of each cluster
         return [np.mean(c) for c in clusters]
 
     resistance_levels = cluster_levels(swing_highs)
     support_levels = cluster_levels(swing_lows)
 
-    # Nearest resistance above current price
     resistances_above = [r for r in resistance_levels if r > current_price]
     resistance = min(resistances_above) if resistances_above else (
         max(resistance_levels) if resistance_levels else None
     )
 
-    # Nearest support below current price
     supports_below = [s for s in support_levels if s < current_price]
     support = max(supports_below) if supports_below else (
         min(support_levels) if support_levels else None
@@ -151,7 +154,6 @@ def compute_all(
     df = compute_obv(df)
 
     support, resistance = compute_support_resistance(df)
-    # Attach as metadata
     df.attrs["support"] = support
     df.attrs["resistance"] = resistance
 
