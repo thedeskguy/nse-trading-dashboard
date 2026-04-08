@@ -1,18 +1,67 @@
 """
 Fundamental analysis data fetcher.
-Uses yfinance Ticker.info — free, no API key required.
+Primary source: yfinance Ticker.info (with browser-like session to avoid cloud rate limits).
+Fallback: compute key metrics from income_stmt + balance_sheet when .info returns empty.
 """
 
+import requests
 import yfinance as yf
+import pandas as pd
 
 
+# ── Session helper ─────────────────────────────────────────────────────────────
+def _make_session() -> requests.Session:
+    """Return a Session with desktop browser headers to avoid Yahoo Finance rate limits."""
+    s = requests.Session()
+    s.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+    })
+    return s
+
+
+# ── Statement row reader ───────────────────────────────────────────────────────
+def _row(df: pd.DataFrame, candidates: list):
+    """
+    Return the float value of the most-recent column from the first matching row.
+    Tries each candidate name in order; returns None if none match.
+    """
+    if df is None or df.empty:
+        return None
+    for name in candidates:
+        if name in df.index:
+            try:
+                series = df.loc[name].dropna()
+                if len(series) > 0:
+                    val = float(series.iloc[0])
+                    return None if pd.isna(val) else val
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+# ── Main fetcher ───────────────────────────────────────────────────────────────
 def fetch_fundamentals(ticker: str) -> dict:
     """
-    Fetch fundamental metrics for a stock via yfinance.
-    Returns a flat dict with None for unavailable fields.
+    Fetch fundamental metrics for a stock.
+    Strategy:
+      1. Try yf.Ticker.info with a browser session (works locally and most of the time).
+      2. If .info returns fewer than 4 usable fields (cloud rate-limit), compute the
+         key metrics from income_stmt + balance_sheet + fast_info.
+    Returns a flat dict; all unavailable fields are None.
     """
+    t = yf.Ticker(ticker, session=_make_session())
+
+    # ── Step 1: .info ──────────────────────────────────────────────────────────
     try:
-        info = yf.Ticker(ticker).info
+        info = t.info or {}
     except Exception:
         info = {}
 
@@ -25,7 +74,7 @@ def fetch_fundamentals(ticker: str) -> dict:
         except (TypeError, ValueError):
             return None
 
-    return {
+    result = {
         # Valuation
         "pe_trailing":     _get("trailingPE"),
         "pe_forward":      _get("forwardPE"),
@@ -62,7 +111,107 @@ def fetch_fundamentals(ticker: str) -> dict:
         "industry":        _get("industry", cast=str),
     }
 
+    # ── Step 2: statement fallback when .info was rate-limited ─────────────────
+    useful = sum(1 for v in result.values() if v is not None)
+    if useful < 4:
+        result = _fill_from_statements(t, result)
 
+    return result
+
+
+def _fill_from_statements(t: yf.Ticker, result: dict) -> dict:
+    """
+    Fill missing fields by computing them from annual financial statements.
+    This uses different Yahoo Finance endpoints that are less aggressively rate-limited.
+    """
+    try:
+        income  = t.income_stmt    # rows = line items, cols = annual dates (newest first)
+        balance = t.balance_sheet
+    except Exception:
+        income, balance = None, None
+
+    # ── Profit margin: net_income / revenue ────────────────────────────────────
+    if result.get("profit_margin") is None:
+        rev = _row(income, ["Total Revenue", "Revenue"])
+        ni  = _row(income, ["Net Income", "Net Income Common Stockholders",
+                             "Net Income Including Noncontrolling Interests"])
+        if rev and ni and rev != 0:
+            result["profit_margin"] = ni / rev
+
+    # ── Gross margin: gross_profit / revenue ───────────────────────────────────
+    if result.get("gross_margin") is None:
+        rev = _row(income, ["Total Revenue", "Revenue"])
+        gp  = _row(income, ["Gross Profit"])
+        if rev and gp and rev != 0:
+            result["gross_margin"] = gp / rev
+
+    # ── ROE: net_income / shareholders_equity ──────────────────────────────────
+    if result.get("roe") is None:
+        ni = _row(income, ["Net Income", "Net Income Common Stockholders",
+                            "Net Income Including Noncontrolling Interests"])
+        eq = _row(balance, ["Stockholders Equity", "Common Stock Equity",
+                             "Total Equity Gross Minority Interest",
+                             "Stockholders' Equity"])
+        if ni and eq and eq != 0:
+            result["roe"] = ni / eq
+
+    # ── ROA: net_income / total_assets ─────────────────────────────────────────
+    if result.get("roa") is None:
+        ni = _row(income, ["Net Income", "Net Income Common Stockholders"])
+        ta = _row(balance, ["Total Assets"])
+        if ni and ta and ta != 0:
+            result["roa"] = ni / ta
+
+    # ── Debt / Equity (reported as % to match yfinance .info convention) ───────
+    if result.get("debt_to_equity") is None:
+        debt = _row(balance, ["Total Debt", "Long Term Debt",
+                               "Long Term Debt And Capital Lease Obligation"])
+        eq   = _row(balance, ["Stockholders Equity", "Common Stock Equity",
+                               "Total Equity Gross Minority Interest"])
+        if debt is not None and eq and eq != 0:
+            result["debt_to_equity"] = (debt / eq) * 100  # match .info scale
+
+    # ── Revenue growth: YoY comparison ─────────────────────────────────────────
+    if result.get("revenue_growth") is None and income is not None and not income.empty:
+        for name in ["Total Revenue", "Revenue"]:
+            if name in income.index:
+                try:
+                    rev_series = income.loc[name].dropna()
+                    if len(rev_series) >= 2:
+                        r0 = float(rev_series.iloc[0])
+                        r1 = float(rev_series.iloc[1])
+                        if r1 != 0 and not pd.isna(r0) and not pd.isna(r1):
+                            result["revenue_growth"] = (r0 - r1) / abs(r1)
+                    break
+                except (TypeError, ValueError):
+                    continue
+
+    # ── Earnings growth: YoY net income comparison ─────────────────────────────
+    if result.get("earnings_growth") is None and income is not None and not income.empty:
+        for name in ["Net Income", "Net Income Common Stockholders"]:
+            if name in income.index:
+                try:
+                    ni_series = income.loc[name].dropna()
+                    if len(ni_series) >= 2:
+                        n0 = float(ni_series.iloc[0])
+                        n1 = float(ni_series.iloc[1])
+                        if n1 != 0 and not pd.isna(n0) and not pd.isna(n1):
+                            result["earnings_growth"] = (n0 - n1) / abs(n1)
+                    break
+                except (TypeError, ValueError):
+                    continue
+
+    # ── Market cap from fast_info (very different endpoint, rarely blocked) ────
+    if result.get("market_cap") is None:
+        try:
+            result["market_cap"] = t.fast_info.market_cap
+        except Exception:
+            pass
+
+    return result
+
+
+# ── Scoring ────────────────────────────────────────────────────────────────────
 def score_fundamentals(data: dict, current_price: float = None) -> dict:
     """
     Score fundamental data on a 0–100 scale.
@@ -75,20 +224,15 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     pe = data.get("pe_trailing")
     if pe is not None and pe > 0:
         if pe < 15:
-            pts = 15
-            label = "Excellent (PE < 15)"
+            pts, label = 15, "Excellent (PE < 15)"
         elif pe < 25:
-            pts = 12
-            label = "Good (PE 15–25)"
+            pts, label = 12, "Good (PE 15–25)"
         elif pe < 40:
-            pts = 8
-            label = "Fair (PE 25–40)"
+            pts, label = 8,  "Fair (PE 25–40)"
         else:
-            pts = 2
-            label = "Expensive (PE > 40)"
+            pts, label = 2,  "Expensive (PE > 40)"
     else:
-        pts = 0
-        label = "N/A"
+        pts, label = 0, "N/A"
     breakdown["PE Ratio"] = {"points": pts, "max": 15, "label": label}
     total += pts
 
@@ -97,20 +241,15 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     if roe is not None:
         roe_pct = roe * 100
         if roe_pct > 20:
-            pts = 15
-            label = f"Excellent ({roe_pct:.1f}%)"
+            pts, label = 15, f"Excellent ({roe_pct:.1f}%)"
         elif roe_pct > 15:
-            pts = 12
-            label = f"Good ({roe_pct:.1f}%)"
+            pts, label = 12, f"Good ({roe_pct:.1f}%)"
         elif roe_pct > 10:
-            pts = 8
-            label = f"Fair ({roe_pct:.1f}%)"
+            pts, label = 8,  f"Fair ({roe_pct:.1f}%)"
         else:
-            pts = 2
-            label = f"Weak ({roe_pct:.1f}%)"
+            pts, label = 2,  f"Weak ({roe_pct:.1f}%)"
     else:
-        pts = 0
-        label = "N/A"
+        pts, label = 0, "N/A"
     breakdown["ROE"] = {"points": pts, "max": 15, "label": label}
     total += pts
 
@@ -118,20 +257,15 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     de = data.get("debt_to_equity")
     if de is not None:
         if de < 30:
-            pts = 15
-            label = f"Low debt ({de:.1f})"
+            pts, label = 15, f"Low debt ({de:.1f})"
         elif de < 80:
-            pts = 10
-            label = f"Moderate ({de:.1f})"
+            pts, label = 10, f"Moderate ({de:.1f})"
         elif de < 150:
-            pts = 5
-            label = f"High ({de:.1f})"
+            pts, label = 5,  f"High ({de:.1f})"
         else:
-            pts = 0
-            label = f"Very High ({de:.1f})"
+            pts, label = 0,  f"Very High ({de:.1f})"
     else:
-        pts = 0
-        label = "N/A"
+        pts, label = 0, "N/A"
     breakdown["Debt / Equity"] = {"points": pts, "max": 15, "label": label}
     total += pts
 
@@ -140,23 +274,17 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     if rg is not None:
         rg_pct = rg * 100
         if rg_pct > 20:
-            pts = 15
-            label = f"Strong ({rg_pct:.1f}%)"
+            pts, label = 15, f"Strong ({rg_pct:.1f}%)"
         elif rg_pct > 10:
-            pts = 10
-            label = f"Good ({rg_pct:.1f}%)"
+            pts, label = 10, f"Good ({rg_pct:.1f}%)"
         elif rg_pct > 5:
-            pts = 6
-            label = f"Moderate ({rg_pct:.1f}%)"
+            pts, label = 6,  f"Moderate ({rg_pct:.1f}%)"
         elif rg_pct > 0:
-            pts = 3
-            label = f"Slow ({rg_pct:.1f}%)"
+            pts, label = 3,  f"Slow ({rg_pct:.1f}%)"
         else:
-            pts = 0
-            label = f"Declining ({rg_pct:.1f}%)"
+            pts, label = 0,  f"Declining ({rg_pct:.1f}%)"
     else:
-        pts = 0
-        label = "N/A"
+        pts, label = 0, "N/A"
     breakdown["Revenue Growth"] = {"points": pts, "max": 15, "label": label}
     total += pts
 
@@ -165,20 +293,15 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     if pm is not None:
         pm_pct = pm * 100
         if pm_pct > 20:
-            pts = 15
-            label = f"Excellent ({pm_pct:.1f}%)"
+            pts, label = 15, f"Excellent ({pm_pct:.1f}%)"
         elif pm_pct > 12:
-            pts = 10
-            label = f"Good ({pm_pct:.1f}%)"
+            pts, label = 10, f"Good ({pm_pct:.1f}%)"
         elif pm_pct > 5:
-            pts = 6
-            label = f"Fair ({pm_pct:.1f}%)"
+            pts, label = 6,  f"Fair ({pm_pct:.1f}%)"
         else:
-            pts = 2
-            label = f"Thin ({pm_pct:.1f}%)"
+            pts, label = 2,  f"Thin ({pm_pct:.1f}%)"
     else:
-        pts = 0
-        label = "N/A"
+        pts, label = 0, "N/A"
     breakdown["Profit Margin"] = {"points": pts, "max": 15, "label": label}
     total += pts
 
