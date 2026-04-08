@@ -9,12 +9,7 @@ import binascii
 import pyotp
 from dotenv import load_dotenv
 
-try:
-    from SmartApi import SmartConnect
-except ImportError:
-    raise ImportError("Run: pip install smartapi-python")
-
-_obj: "SmartConnect | None" = None
+_obj = None
 
 
 def _normalize_totp_secret(secret: str) -> str:
@@ -42,7 +37,12 @@ def _normalize_totp_secret(secret: str) -> str:
         return cleaned
 
 
-def _login() -> "SmartConnect":
+def _login():
+    try:
+        from SmartApi import SmartConnect
+    except ImportError:
+        raise ImportError("smartapi-python is not installed. Run: pip install smartapi-python")
+
     load_dotenv()
 
     api_key    = os.environ.get("ANGEL_API_KEY")
