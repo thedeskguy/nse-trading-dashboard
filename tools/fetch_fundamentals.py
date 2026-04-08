@@ -1,30 +1,12 @@
 """
 Fundamental analysis data fetcher.
-Primary source: yfinance Ticker.info (with browser-like session to avoid cloud rate limits).
+Primary source: yfinance Ticker.info — let yfinance manage its own session (yfinance 1.x
+uses curl_cffi internally and rejects external requests.Session objects).
 Fallback: compute key metrics from income_stmt + balance_sheet when .info returns empty.
 """
 
-import requests
 import yfinance as yf
 import pandas as pd
-
-
-# ── Session helper ─────────────────────────────────────────────────────────────
-def _make_session() -> requests.Session:
-    """Return a Session with desktop browser headers to avoid Yahoo Finance rate limits."""
-    s = requests.Session()
-    s.headers.update({
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-    })
-    return s
 
 
 # ── Statement row reader ───────────────────────────────────────────────────────
@@ -52,12 +34,12 @@ def fetch_fundamentals(ticker: str) -> dict:
     """
     Fetch fundamental metrics for a stock.
     Strategy:
-      1. Try yf.Ticker.info with a browser session (works locally and most of the time).
+      1. Try yf.Ticker.info — yfinance 1.x manages its own curl_cffi session.
       2. If .info returns fewer than 4 usable fields (cloud rate-limit), compute the
          key metrics from income_stmt + balance_sheet + fast_info.
     Returns a flat dict; all unavailable fields are None.
     """
-    t = yf.Ticker(ticker, session=_make_session())
+    t = yf.Ticker(ticker)
 
     # ── Step 1: .info ──────────────────────────────────────────────────────────
     try:

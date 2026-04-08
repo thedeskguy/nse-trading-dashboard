@@ -723,13 +723,13 @@ def main():
 
         _zoom_cfg = {"scrollZoom": True, "displayModeBar": True, "plotGlPixelRatio": 1}
         with tab_tech:
-            st.plotly_chart(build_price_chart(df, support, resistance), use_container_width=True, config=_zoom_cfg, key="chart_price")
+            st.plotly_chart(build_price_chart(df, support, resistance), width='stretch', config=_zoom_cfg, key="chart_price")
             col_rsi, col_macd = st.columns(2)
             with col_rsi:
-                st.plotly_chart(build_rsi_chart(df), use_container_width=True, config=_zoom_cfg, key="chart_rsi")
+                st.plotly_chart(build_rsi_chart(df), width='stretch', config=_zoom_cfg, key="chart_rsi")
             with col_macd:
-                st.plotly_chart(build_macd_chart(df), use_container_width=True, config=_zoom_cfg, key="chart_macd")
-            st.plotly_chart(build_volume_obv_chart(df), use_container_width=True, config=_zoom_cfg, key="chart_volume")
+                st.plotly_chart(build_macd_chart(df), width='stretch', config=_zoom_cfg, key="chart_macd")
+            st.plotly_chart(build_volume_obv_chart(df), width='stretch', config=_zoom_cfg, key="chart_volume")
             st.subheader("Indicator Breakdown")
             render_indicator_table(sig["components"])
             with st.expander("View raw data"):
