@@ -161,6 +161,7 @@ def build_rsi_chart(df: pd.DataFrame) -> go.Figure:
         yaxis=dict(range=[0, 100], fixedrange=False),
         xaxis=dict(fixedrange=False),
         dragmode="zoom",
+        uirevision="rsi",
         margin=dict(l=0, r=0, t=40, b=0), showlegend=False,
     )
     return fig
@@ -178,11 +179,11 @@ def build_macd_chart(df: pd.DataFrame) -> go.Figure:
         x=df.index, y=hist, name="Histogram",
         marker_color=bar_colors, opacity=0.7,
     ))
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=df.index, y=df["MACD"], name="MACD",
         line=dict(color="#2196F3", width=1.5),
     ))
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=df.index, y=df["MACD_signal"], name="Signal",
         line=dict(color="#FF9800", width=1.5),
     ))
@@ -193,6 +194,7 @@ def build_macd_chart(df: pd.DataFrame) -> go.Figure:
         margin=dict(l=0, r=0, t=40, b=0),
         legend=dict(orientation="h", y=1.05),
         dragmode="zoom",
+        uirevision="macd",
         xaxis=dict(fixedrange=False),
         yaxis=dict(fixedrange=False),
     )
@@ -212,7 +214,7 @@ def build_volume_obv_chart(df: pd.DataFrame) -> go.Figure:
     ), secondary_y=False)
 
     if "OBV" in df.columns:
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=df.index, y=df["OBV"], name="OBV",
             line=dict(color="#E040FB", width=1.5),
         ), secondary_y=True)
@@ -222,6 +224,7 @@ def build_volume_obv_chart(df: pd.DataFrame) -> go.Figure:
         margin=dict(l=0, r=0, t=40, b=0),
         legend=dict(orientation="h", y=1.05),
         dragmode="zoom",
+        uirevision="volume",
         xaxis=dict(fixedrange=False),
         yaxis=dict(fixedrange=False),
     )
@@ -616,15 +619,15 @@ def main():
 
         tab_tech, tab_fund, tab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
 
-        _zoom_cfg = {"scrollZoom": True, "displayModeBar": True, "modeBarButtonsToAdd": ["zoom2d", "pan2d"]}
+        _zoom_cfg = {"scrollZoom": True, "displayModeBar": True}
         with tab_tech:
-            st.plotly_chart(build_price_chart(df, support, resistance), use_container_width=True, config=_zoom_cfg)
+            st.plotly_chart(build_price_chart(df, support, resistance), use_container_width=True, config=_zoom_cfg, key="chart_price")
             col_rsi, col_macd = st.columns(2)
             with col_rsi:
-                st.plotly_chart(build_rsi_chart(df), use_container_width=True, config=_zoom_cfg)
+                st.plotly_chart(build_rsi_chart(df), use_container_width=True, config=_zoom_cfg, key="chart_rsi")
             with col_macd:
-                st.plotly_chart(build_macd_chart(df), use_container_width=True, config=_zoom_cfg)
-            st.plotly_chart(build_volume_obv_chart(df), use_container_width=True, config=_zoom_cfg)
+                st.plotly_chart(build_macd_chart(df), use_container_width=True, config=_zoom_cfg, key="chart_macd")
+            st.plotly_chart(build_volume_obv_chart(df), use_container_width=True, config=_zoom_cfg, key="chart_volume")
             st.subheader("Indicator Breakdown")
             render_indicator_table(sig["components"])
             with st.expander("View raw data"):
