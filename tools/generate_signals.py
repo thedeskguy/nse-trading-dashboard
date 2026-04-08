@@ -185,7 +185,11 @@ def generate_signal(df: pd.DataFrame, atr_multiplier: float = 1.5) -> dict:
         signal = "HOLD"
 
     # Stop-loss and target based on ATR
-    atr = float(last.get("ATR_14", price * 0.02))  # fallback to 2% if ATR missing
+    _atr_raw = last.get("ATR_14")
+    try:
+        atr = float(_atr_raw) if _atr_raw is not None else price * 0.02
+    except (TypeError, ValueError):
+        atr = price * 0.02
     if pd.isna(atr):
         atr = price * 0.02
 

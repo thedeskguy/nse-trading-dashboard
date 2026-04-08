@@ -76,8 +76,8 @@ NIFTY50 = {
 SIGNAL_COLORS = {"BUY": "#00C851", "SELL": "#ff4444", "HOLD": "#ffbb33"}
 
 
-# ── Data fetching (cached 5 min) ───────────────────────────────────────────────
-@st.cache_data(ttl=300)
+# ── Data fetching (cached 60s for intraday, 5min for daily) ───────────────────
+@st.cache_data(ttl=60)
 def load_data(ticker: str, interval: str, period: str):
     df = fetch_ohlcv(ticker, interval=interval, period=period)
     df = compute_all(df)
@@ -476,7 +476,7 @@ def render_ml_prediction(df: pd.DataFrame, ticker: str) -> None:
         xaxis_title="Importance", yaxis=dict(autorange="reversed"),
         margin=dict(l=10, r=60, t=20, b=30),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.caption(
         f"Model: Random Forest (100 trees) · Trained on {result['train_samples']} days · "
@@ -493,17 +493,58 @@ def main():
         layout="wide",
     )
     inject_css()
+
+    # ── Top navbar ─────────────────────────────────────────────────────────────
+    st.markdown("""
+    <style>
+    /* Navbar pill styling */
+    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] {
+        gap: 6px;
+    }
+    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 9px 28px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.97rem;
+        transition: all 0.15s;
+        color: rgba(255,255,255,0.55);
+    }
+    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label:hover {
+        background: rgba(0,212,160,0.07);
+        border-color: rgba(0,212,160,0.35);
+        color: rgba(0,212,160,0.85);
+    }
+    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label:has(input:checked) {
+        background: rgba(0,212,160,0.13) !important;
+        border-color: rgba(0,212,160,0.55) !important;
+        color: #00d4a0 !important;
+    }
+    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label > div:first-child {
+        display: none;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    section = st.radio(
+        "nav",
+        ["📈 Equities", "🎯 Index Options"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="top_nav",
+    )
+    st.divider()
+
     page_header("NSE / BSE Trading Dashboard", "Real-time technical analysis · BUY / SELL / HOLD signals")
 
     # ── Sidebar ────────────────────────────────────────────────────────────────
     with st.sidebar:
         st.header("Settings")
-
-        tab_choice = st.radio("View", ["📊 Stocks / Charts", "🎯 Index Options"], label_visibility="collapsed")
-
         st.divider()
 
-        if tab_choice == "📊 Stocks / Charts":
+        if section == "📈 Equities":
             selected_name = st.selectbox("Select Stock (Nifty 50)", list(NIFTY50.keys()))
             custom_ticker = st.text_input(
                 "Or enter custom ticker",
@@ -526,14 +567,14 @@ def main():
             st.cache_data.clear()
 
         st.divider()
+        st.caption("📡 Equity data: Angel One → Yahoo Finance fallback")
         st.caption("Options data: NSE live chain")
-        st.caption("Equity data: Yahoo Finance (15-min delay intraday)")
         st.caption("⚠️ For educational purposes only. Not financial advice.")
 
     # ══════════════════════════════════════════════════════════════════════════
-    # TAB 1: Stocks / Charts
+    # SECTION: Equities
     # ══════════════════════════════════════════════════════════════════════════
-    if tab_choice == "📊 Stocks / Charts":
+    if section == "📈 Equities":
         with st.spinner(f"Fetching {ticker} ({interval}, {period})…"):
             try:
                 df = load_data(ticker, interval, period)
@@ -583,7 +624,7 @@ def main():
             render_ml_prediction(df, ticker)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # TAB 2: Index Options
+    # SECTION: Index Options
     # ══════════════════════════════════════════════════════════════════════════
     else:
         index_names = {"NIFTY": "Nifty 50", "BANKNIFTY": "Bank Nifty", "MIDCPNIFTY": "Midcap Nifty"}
@@ -605,7 +646,7 @@ def main():
         h1.metric(f"{opt_index} Spot", f"₹{opt_result['spot']:,.2f}")
         h2.metric("Trend Signal", opt_result["underlying_signal"])
         h3.metric("Confidence", f"{opt_result['confidence']}%")
-        pcr = opt_result["pcr"]
+        pcr = opt_result.get("pcr") or {}
         h4.metric("Put/Call Ratio", str(pcr.get("pcr", "N/A")), help=pcr.get("signal", ""))
         if opt_result.get("max_pain"):
             h5.metric("Max Pain", f"₹{opt_result['max_pain']:,.0f}", help="Strike where option buyers lose most near expiry")
@@ -669,10 +710,10 @@ Market makers profit most if index closes here on expiry day.
         st.markdown("#### Live Options Chain (ATM ± 10 strikes)")
         try:
             from tools.fetch_options_chain import fetch_options_chain
-            chain_data = fetch_options_chain(opt_index)
-            expiry_dates = chain_data["expiry_dates"]
-            selected_expiry = st.selectbox("Expiry", expiry_dates[:6]) if expiry_dates else None
+            expiry_dates = opt_result.get("expiry_dates", [])
+            selected_expiry = st.selectbox("Expiry", expiry_dates) if expiry_dates else None
             if selected_expiry:
+                chain_data = fetch_options_chain(opt_index, expiry=selected_expiry)
                 render_options_chain_table(chain_data["chain"], opt_result["spot"], selected_expiry, opt_index)
         except Exception as e:
             st.warning(f"Could not load options chain table: {e}")

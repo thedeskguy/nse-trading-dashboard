@@ -1,6 +1,7 @@
 """
-Fetch real OHLCV data from Yahoo Finance for NSE/BSE stocks.
-Uses yfinance — no API key required.
+Fetch OHLCV data for NSE/BSE stocks.
+Primary: Angel One SmartAPI (real-time, no delay) — requires .env credentials.
+Fallback: Yahoo Finance (free, ~15 min delay for intraday).
 """
 
 import yfinance as yf
@@ -40,37 +41,8 @@ def validate_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def fetch_ohlcv(
-    ticker: str,
-    interval: str = "1d",
-    period: str = "3mo",
-    auto_adjust: bool = True,
-) -> pd.DataFrame:
-    """
-    Fetch OHLCV data for a ticker.
-
-    Args:
-        ticker:       Yahoo Finance ticker (e.g. 'RELIANCE.NS', 'TCS.NS')
-        interval:     One of: 5m, 15m, 30m, 1h, 1d, 1wk
-        period:       Lookback period (must be valid for the interval)
-        auto_adjust:  Adjust for splits/dividends
-
-    Returns:
-        DataFrame with columns: Open, High, Low, Close, Volume
-        Index: DatetimeIndex
-
-    Raises:
-        ValueError: Invalid interval/period combo or empty response
-    """
-    if interval not in VALID_COMBOS:
-        raise ValueError(f"Invalid interval '{interval}'. Choose from: {list(VALID_COMBOS)}")
-
-    if period not in VALID_COMBOS[interval]:
-        raise ValueError(
-            f"Period '{period}' not valid for interval '{interval}'. "
-            f"Valid periods: {VALID_COMBOS[interval]}"
-        )
-
+def _fetch_yfinance(ticker: str, interval: str, period: str, auto_adjust: bool = True) -> pd.DataFrame:
+    """Raw yfinance fetch — raises ValueError on failure."""
     t = yf.Ticker(ticker)
     df = t.history(period=period, interval=interval, auto_adjust=auto_adjust)
 
@@ -80,10 +52,8 @@ def fetch_ohlcv(
             "Check that the ticker is correct and the market has trading history."
         )
 
-    # Keep only standard OHLCV columns
     df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
 
-    # Convert intraday index to IST
     if interval in ("5m", "15m", "30m", "1h"):
         if df.index.tz is None:
             df.index = df.index.tz_localize("UTC")
@@ -95,6 +65,57 @@ def fetch_ohlcv(
         raise ValueError(f"Data for '{ticker}' was empty after cleaning.")
 
     return df
+
+
+def fetch_ohlcv(
+    ticker: str,
+    interval: str = "1d",
+    period: str = "3mo",
+    auto_adjust: bool = True,
+) -> pd.DataFrame:
+    """
+    Fetch OHLCV data for a ticker.
+
+    Tries Angel One SmartAPI first (real-time). Falls back to Yahoo Finance
+    if credentials are missing, the symbol isn't in the master, or any error occurs.
+
+    Args:
+        ticker:   Yahoo Finance ticker format (e.g. 'RELIANCE.NS', '^NSEI')
+        interval: One of: 5m, 15m, 30m, 1h, 1d, 1wk
+        period:   Lookback period (must be valid for the interval)
+
+    Returns:
+        DataFrame with columns: Open, High, Low, Close, Volume (DatetimeIndex)
+
+    Raises:
+        ValueError: if both sources fail or interval/period is invalid
+    """
+    if interval not in VALID_COMBOS:
+        raise ValueError(f"Invalid interval '{interval}'. Choose from: {list(VALID_COMBOS)}")
+
+    if period not in VALID_COMBOS[interval]:
+        raise ValueError(
+            f"Period '{period}' not valid for interval '{interval}'. "
+            f"Valid periods: {VALID_COMBOS[interval]}"
+        )
+
+    # ── Try Angel One first (5-second hard timeout) ────────────────────────────
+    import concurrent.futures
+    try:
+        from tools.fetch_angel_ohlcv import fetch_angel_ohlcv
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(fetch_angel_ohlcv, ticker, interval, period)
+            try:
+                df = future.result(timeout=5)
+                if df is not None and not df.empty:
+                    return df
+            except concurrent.futures.TimeoutError:
+                pass  # Angel One too slow — fall back immediately
+    except Exception:
+        pass
+
+    # ── Fallback: Yahoo Finance ────────────────────────────────────────────────
+    return _fetch_yfinance(ticker, interval, period, auto_adjust)
 
 
 if __name__ == "__main__":

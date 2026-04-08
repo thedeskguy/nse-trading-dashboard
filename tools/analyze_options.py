@@ -207,13 +207,35 @@ def recommend_option(symbol: str, style: str = "both", expiry: str = None) -> di
 
     # HOLD → no options trade
     if underlying_signal == "HOLD":
+        # Fetch chain meta so the chain table, PCR, max pain, and timestamp still work
+        try:
+            _meta = fetch_options_chain(symbol)
+            _expiry_dates = _meta["expiry_dates"]
+            _near_expiry  = _expiry_dates[0] if _expiry_dates else None
+            _chain_df     = _meta["chain"]
+            _timestamp    = _meta["timestamp"]
+            _pcr          = compute_pcr(_chain_df, _near_expiry)
+            _max_pain     = find_max_pain(_chain_df, _near_expiry) if _near_expiry else None
+            _nse_spot     = _meta["underlying_value"] or spot
+        except Exception:
+            _expiry_dates = []
+            _near_expiry  = None
+            _timestamp    = None
+            _pcr          = {}
+            _max_pain     = None
+            _nse_spot     = spot
         return {
-            "symbol": symbol,
-            "spot": spot,
+            "symbol":            symbol,
+            "spot":              round(_nse_spot, 2),
             "underlying_signal": "HOLD",
-            "confidence": confidence,
-            "recommendation": None,
-            "message": "No options trade recommended — underlying trend is HOLD (conflicting signals).",
+            "confidence":        confidence,
+            "recommendation":    None,
+            "signal_components": sig["components"],
+            "expiry_dates":      _expiry_dates,
+            "timestamp":         _timestamp,
+            "pcr":               _pcr,
+            "max_pain":          _max_pain,
+            "message":           "No options trade recommended — underlying trend is HOLD (conflicting signals).",
         }
 
     # Map underlying signal to option type
