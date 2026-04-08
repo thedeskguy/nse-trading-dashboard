@@ -97,11 +97,11 @@ def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
 
     # Bollinger Bands (shaded)
     if "BB_upper" in df.columns:
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=df.index, y=df["BB_upper"], name="BB Upper",
             line=dict(color="rgba(150,150,255,0.5)", width=1), showlegend=True,
         ))
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=df.index, y=df["BB_lower"], name="BB Lower",
             line=dict(color="rgba(150,150,255,0.5)", width=1),
             fill="tonexty", fillcolor="rgba(150,150,255,0.07)", showlegend=True,
@@ -111,7 +111,7 @@ def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
     ema_colors = {"EMA_9": "#FFD700", "EMA_21": "#FF8C00", "EMA_50": "#00BFFF", "EMA_200": "#FF69B4"}
     for col, color in ema_colors.items():
         if col in df.columns:
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=df.index, y=df[col], name=col.replace("_", " "),
                 line=dict(color=color, width=1.2),
             ))
@@ -128,6 +128,10 @@ def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
         title="Price Chart", xaxis_rangeslider_visible=False,
         height=480, template="plotly_dark", legend=dict(orientation="h", y=1.02),
         margin=dict(l=0, r=0, t=40, b=0),
+        dragmode="zoom",
+        uirevision="price",
+        xaxis=dict(fixedrange=False),
+        yaxis=dict(fixedrange=False),
     )
     return fig
 
@@ -141,7 +145,7 @@ def build_rsi_chart(df: pd.DataFrame) -> go.Figure:
     rsi = df[col]
     colors = ["#00C851" if v < 30 else "#ff4444" if v > 70 else "#888" for v in rsi]
 
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=df.index, y=rsi, name="RSI(14)",
         line=dict(color="#7B68EE", width=1.5),
     ))
@@ -154,7 +158,9 @@ def build_rsi_chart(df: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         title="RSI (14)", height=200, template="plotly_dark",
-        yaxis=dict(range=[0, 100]),
+        yaxis=dict(range=[0, 100], fixedrange=False),
+        xaxis=dict(fixedrange=False),
+        dragmode="zoom",
         margin=dict(l=0, r=0, t=40, b=0), showlegend=False,
     )
     return fig
@@ -186,6 +192,9 @@ def build_macd_chart(df: pd.DataFrame) -> go.Figure:
         title="MACD (12, 26, 9)", height=220, template="plotly_dark",
         margin=dict(l=0, r=0, t=40, b=0),
         legend=dict(orientation="h", y=1.05),
+        dragmode="zoom",
+        xaxis=dict(fixedrange=False),
+        yaxis=dict(fixedrange=False),
     )
     return fig
 
@@ -212,6 +221,9 @@ def build_volume_obv_chart(df: pd.DataFrame) -> go.Figure:
         title="Volume + OBV", height=220, template="plotly_dark",
         margin=dict(l=0, r=0, t=40, b=0),
         legend=dict(orientation="h", y=1.05),
+        dragmode="zoom",
+        xaxis=dict(fixedrange=False),
+        yaxis=dict(fixedrange=False),
     )
     fig.update_yaxes(title_text="Volume", secondary_y=False)
     fig.update_yaxes(title_text="OBV", secondary_y=True)
@@ -604,14 +616,15 @@ def main():
 
         tab_tech, tab_fund, tab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
 
+        _zoom_cfg = {"scrollZoom": True, "displayModeBar": True, "modeBarButtonsToAdd": ["zoom2d", "pan2d"]}
         with tab_tech:
-            st.plotly_chart(build_price_chart(df, support, resistance), width="stretch")
+            st.plotly_chart(build_price_chart(df, support, resistance), use_container_width=True, config=_zoom_cfg)
             col_rsi, col_macd = st.columns(2)
             with col_rsi:
-                st.plotly_chart(build_rsi_chart(df), width="stretch")
+                st.plotly_chart(build_rsi_chart(df), use_container_width=True, config=_zoom_cfg)
             with col_macd:
-                st.plotly_chart(build_macd_chart(df), width="stretch")
-            st.plotly_chart(build_volume_obv_chart(df), width="stretch")
+                st.plotly_chart(build_macd_chart(df), use_container_width=True, config=_zoom_cfg)
+            st.plotly_chart(build_volume_obv_chart(df), use_container_width=True, config=_zoom_cfg)
             st.subheader("Indicator Breakdown")
             render_indicator_table(sig["components"])
             with st.expander("View raw data"):
