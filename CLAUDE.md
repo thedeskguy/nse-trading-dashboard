@@ -44,11 +44,23 @@ cp .env.example .env              # then fill in API keys
 ## File Structure
 
 ```
-.tmp/           # Temporary/intermediate files (angel_tokens.json cache, etc.) — disposable
-tools/          # Python scripts (deterministic execution)
-tests/          # Unit tests (pytest)
-workflows/      # Markdown SOPs
-.env            # API keys and secrets (never commit)
+dashboard.py        # Main Streamlit entry point (equities)
+pages/
+  index_options.py  # Index Options page (NIFTY / BANKNIFTY / MIDCPNIFTY)
+tools/              # Python scripts (deterministic execution)
+tests/              # Unit tests (pytest)
+workflows/          # Markdown SOPs
+.streamlit/         # Streamlit config (dark theme, headless)
+.tmp/               # Temporary cache files (angel_tokens.json, etc.) — disposable
+.env                # API keys and secrets (never commit)
 ```
+
+## Key Architecture Notes
+
+- **Stock search** uses NSE's public equity CSV (`archives.nseindia.com/content/equities/EQUITY_L.csv`) for full company names. Cached for 24h.
+- **Options chain** uses Angel One instrument master (`margincalculator.angelbroking.com`) for token lookup. Cached for 1h.
+- **OI chart** requires `yaxis=dict(range=[-0.5, n-0.5])` fix due to Plotly 6 parsing numeric-string category labels as numbers.
+- **Plotly price charts** use `type="category"` x-axis with string date labels (via `_x_labels()`) to eliminate weekend/holiday gaps.
+- The app runs as a single Streamlit multi-page app — `dashboard.py` is the entry point, Index Options is under `pages/`.
 
 All outputs are local (charts, signals). No cloud deliverables in this project.

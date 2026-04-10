@@ -430,10 +430,14 @@ def load_prediction(ticker: str, period: str):
 
 
 # ── Fundamentals render ────────────────────────────────────────────────────────
-def render_fundamentals(ticker: str, last_price: float) -> None:
-    with st.spinner("Loading fundamental data…"):
-        data = load_fundamentals(ticker)
-    result = score_fundamentals(data, current_price=last_price)
+def render_fundamentals(ticker: str, last_price: float, preloaded_data=None, preloaded_result=None) -> None:
+    if preloaded_data is not None:
+        data = preloaded_data
+        result = preloaded_result
+    else:
+        with st.spinner("Loading fundamental data…"):
+            data = load_fundamentals(ticker)
+        result = score_fundamentals(data, current_price=last_price)
     score = result["score"]
     grade = result["grade"]
     breakdown = result["breakdown"]
@@ -466,70 +470,93 @@ def render_fundamentals(ticker: str, last_price: float) -> None:
 
     st.divider()
 
+    def _fmt(val, suffix="", prefix=""):
+        return f"{prefix}{val:.2f}{suffix}" if val is not None else None
+
+    def _pct(val):
+        return f"{val*100:.1f}%" if val is not None else None
+
+    def _show_metrics(items, max_cols=5):
+        """Render only metrics whose value is not None, up to max_cols per row."""
+        available = [(label, val, kw) for label, val, kw in items if val is not None]
+        if not available:
+            st.caption("No data available.")
+            return
+        for i in range(0, len(available), max_cols):
+            chunk = available[i:i + max_cols]
+            cols = st.columns(len(chunk))
+            for col, (label, val, kw) in zip(cols, chunk):
+                col.metric(label, val, **kw)
+
     # ── Valuation ─────────────────────────────────────────────────────────────
     st.markdown("#### Valuation")
-    v1, v2, v3, v4, v5 = st.columns(5)
-    def _fmt(val, suffix="", prefix=""):
-        return f"{prefix}{val:.2f}{suffix}" if val is not None else "—"
-
-    v1.metric("Trailing PE", _fmt(data["pe_trailing"], "x"))
-    v2.metric("Forward PE",  _fmt(data["pe_forward"],  "x"))
-    v3.metric("Price / Book", _fmt(data["pb_ratio"],   "x"))
-    v4.metric("PEG Ratio",   _fmt(data["peg_ratio"],   "x"))
-    v5.metric("EV / EBITDA", _fmt(data["ev_ebitda"],   "x"))
+    _show_metrics([
+        ("Trailing PE",  _fmt(data["pe_trailing"], "x"),  {}),
+        ("Forward PE",   _fmt(data["pe_forward"],  "x"),  {}),
+        ("Price / Book", _fmt(data["pb_ratio"],    "x"),  {}),
+        ("PEG Ratio",    _fmt(data["peg_ratio"],   "x"),  {}),
+        ("EV / EBITDA",  _fmt(data["ev_ebitda"],   "x"),  {}),
+    ])
 
     # ── Profitability ─────────────────────────────────────────────────────────
     st.markdown("#### Profitability")
-    p1, p2, p3, p4 = st.columns(4)
-    def _pct(val):
-        return f"{val*100:.1f}%" if val is not None else "—"
-
-    p1.metric("ROE",           _pct(data["roe"]))
-    p2.metric("ROA",           _pct(data["roa"]))
-    p3.metric("Net Margin",    _pct(data["profit_margin"]))
-    p4.metric("Gross Margin",  _pct(data["gross_margin"]))
+    _show_metrics([
+        ("ROE",          _pct(data["roe"]),            {}),
+        ("ROA",          _pct(data["roa"]),            {}),
+        ("Net Margin",   _pct(data["profit_margin"]),  {}),
+        ("Gross Margin", _pct(data["gross_margin"]),   {}),
+        ("Op Margin",    _pct(data["op_margin"]),      {}),
+    ])
 
     # ── Growth & Health ───────────────────────────────────────────────────────
-    g1, g2, h1, h2, h3 = st.columns(5)
-    g1.metric("Revenue Growth",  _pct(data["revenue_growth"]))
-    g2.metric("Earnings Growth", _pct(data["earnings_growth"]))
-    h1.metric("Debt / Equity",   _fmt(data["debt_to_equity"]))
-    h2.metric("Current Ratio",   _fmt(data["current_ratio"]))
-    h3.metric("Quick Ratio",     _fmt(data["quick_ratio"]))
+    st.markdown("#### Growth & Financial Health")
+    _show_metrics([
+        ("Revenue Growth",  _pct(data["revenue_growth"]),  {}),
+        ("Earnings Growth", _pct(data["earnings_growth"]), {}),
+        ("Debt / Equity",   _fmt(data["debt_to_equity"]),  {}),
+        ("Current Ratio",   _fmt(data["current_ratio"]),   {}),
+        ("Quick Ratio",     _fmt(data["quick_ratio"]),     {}),
+        ("Dividend Yield",  _pct(data["dividend_yield"]),  {}),
+        ("Payout Ratio",    _pct(data["payout_ratio"]),    {}),
+    ])
 
     st.divider()
 
     # ── Analyst view ──────────────────────────────────────────────────────────
     st.markdown("#### Analyst View")
-    a1, a2, a3 = st.columns(3)
-    rec = (data.get("recommendation") or "—").replace("_", " ").title()
-    a1.metric("Recommendation", rec)
     target = data.get("target_price")
-    upside_str = "—"
+    upside_delta = None
     if target and last_price:
         upside = (target - last_price) / last_price * 100
-        upside_str = f"{upside:+.1f}%"
-    a2.metric("Target Price", _fmt(target, prefix="₹") if target else "—", delta=upside_str if target else None)
-    a3.metric("Analyst Count", str(data.get("analyst_count") or "—"))
+        upside_delta = f"{upside:+.1f}%"
+    rec = (data.get("recommendation") or "").replace("_", " ").title() or None
+    _show_metrics([
+        ("Recommendation", rec,                                                          {}),
+        ("Target Price",   f"₹{target:.2f}" if target else None,                        {"delta": upside_delta}),
+        ("Analyst Count",  str(data["analyst_count"]) if data.get("analyst_count") else None, {}),
+    ])
 
     st.divider()
 
-    # ── Company info row ──────────────────────────────────────────────────────
-    i1, i2, i3, i4 = st.columns(4)
+    # ── Company info ──────────────────────────────────────────────────────────
     mcap = data.get("market_cap")
-    mcap_str = f"₹{mcap/1e7:,.0f} Cr" if mcap else "—"
-    i1.metric("Market Cap", mcap_str)
-    i2.metric("Beta", _fmt(data.get("beta")))
-    i3.metric("Sector", data.get("sector") or "—")
-    i4.metric("Industry", data.get("industry") or "—")
+    _show_metrics([
+        ("Market Cap", f"₹{mcap/1e7:,.0f} Cr" if mcap else None,  {}),
+        ("Beta",       _fmt(data.get("beta")),                      {}),
+        ("Sector",     data.get("sector") or None,                  {}),
+        ("Industry",   data.get("industry") or None,                {}),
+    ])
 
 
 # ── ML prediction render ───────────────────────────────────────────────────────
-def render_ml_prediction(df: pd.DataFrame, ticker: str) -> None:
+def render_ml_prediction(df: pd.DataFrame, ticker: str, preloaded_result=None) -> None:
     import plotly.graph_objects as go
 
-    with st.spinner("Training ML model…"):
-        result = load_prediction(ticker, "2y")
+    if preloaded_result is not None:
+        result = preloaded_result
+    else:
+        with st.spinner("Training ML model…"):
+            result = load_prediction(ticker, "2y")
 
     if result.get("error"):
         st.warning(f"ML model unavailable: {result['error']}")
@@ -646,9 +673,12 @@ def main():
         label_visibility="collapsed",
         key="top_nav",
     )
+
+    if section == "🎯 Index Options":
+        st.switch_page("pages/index_options.py")
     st.divider()
 
-    page_header("NSE / BSE Trading Dashboard", "Real-time technical analysis · BUY / SELL / HOLD signals")
+    _header_placeholder = st.empty()
 
     # ── Sidebar ────────────────────────────────────────────────────────────────
     with st.sidebar:
@@ -656,19 +686,71 @@ def main():
         st.divider()
 
         if section == "📈 Equities":
-            universe_choice = st.selectbox("Stock Universe", list(STOCK_UNIVERSES.keys()))
-            active_universe = STOCK_UNIVERSES[universe_choice]
-            selected_name = st.selectbox("Select Stock", sorted(active_universe.keys()))
-            raw_custom = st.text_input(
-                "Or enter custom ticker",
-                placeholder="e.g. TATAMOTORS",
-                help="Just type the NSE symbol — .NS will be added automatically",
+            @st.cache_data(ttl=86400, show_spinner=False)
+            def _build_unified_options() -> list[tuple[str, str]]:
+                """Fetch full NSE equity list from NSE archives.
+                Returns list of (display_label, nse_symbol) where display_label =
+                'Company Full Name (TICKER)' — searchable by either.
+                Filters out test/numeric symbols. Default sorted by company name.
+                """
+                import io
+                import requests as _req
+                try:
+                    resp = _req.get(
+                        "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
+                        timeout=15,
+                        headers={"User-Agent": "Mozilla/5.0"},
+                    )
+                    resp.raise_for_status()
+                    import pandas as _pd
+                    df = _pd.read_csv(io.StringIO(resp.text))
+                    sym_col  = "SYMBOL"
+                    name_col = "NAME OF COMPANY"
+                    df = df[[sym_col, name_col]].dropna()
+                    df.columns = ["sym", "name"]
+                    # Filter out test entries and purely numeric symbols
+                    df = df[~df["sym"].str.contains("NSETEST", na=False)]
+                    df = df[~df["sym"].str.match(r"^\d", na=False)]
+                    df["name"] = df["name"].str.strip().str.title()
+                    df["sym"]  = df["sym"].str.strip().str.upper()
+                    df = df.sort_values("name")
+                    return [(f"{row.name} ({row.sym})", row.sym) for row in df.itertuples(index=False)]
+                except Exception:
+                    # Fallback to hardcoded list
+                    all_stocks = {**NIFTY50, **OTHER_STOCKS}
+                    entries = sorted(
+                        [(f"{name} ({v.replace('.NS','').replace('.BO','')})",
+                          v.replace(".NS","").replace(".BO",""))
+                         for name, v in all_stocks.items()],
+                        key=lambda x: x[0]
+                    )
+                    return entries
+
+            unified_options = _build_unified_options()
+            labels  = [label for label, _ in unified_options]
+            sym_map = {label: sym for label, sym in unified_options}
+            # name lookup: "RELIANCE" → "Reliance Industries Limited"
+            sym_to_name = {sym: label.rsplit(" (", 1)[0] for label, sym in unified_options}
+
+            # Default to Reliance Industries
+            default_idx = next(
+                (i + 1 for i, (_, s) in enumerate(unified_options) if s == "RELIANCE"),
+                1,
             )
-            if raw_custom.strip():
-                _sym = raw_custom.strip().upper().removesuffix(".NS").removesuffix(".BO")
-                ticker = _sym + ".NS"
+            sel_label = st.selectbox(
+                "Search stock (name or ticker)",
+                options=[""] + labels,
+                index=default_idx,
+                format_func=lambda x: "— type name or ticker —" if x == "" else x,
+            )
+
+            if sel_label:
+                raw_sym = sym_map[sel_label]
+                ticker  = raw_sym + ".NS"
+                selected_display = sym_to_name.get(raw_sym, raw_sym)
             else:
-                ticker = active_universe[selected_name]
+                ticker = "RELIANCE.NS"
+                selected_display = "Reliance Industries Limited"
             interval = st.selectbox("Interval", ["5m", "15m", "30m", "1h", "1d", "1wk"], index=4)
             valid_periods = VALID_COMBOS[interval]
             period = st.selectbox("Period", valid_periods, index=min(2, len(valid_periods) - 1))
@@ -689,9 +771,14 @@ def main():
         st.caption("⚠️ For educational purposes only. Not financial advice.")
 
     # ══════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
     # SECTION: Equities
     # ══════════════════════════════════════════════════════════════════════════
     if section == "📈 Equities":
+        # Fill header now that we know the selected stock
+        with _header_placeholder:
+            page_header(selected_display, "Real-time technical analysis · BUY / SELL / HOLD signals")
+
         with st.spinner(f"Fetching {ticker} ({interval}, {period})…"):
             try:
                 df = load_data(ticker, interval, period)
@@ -703,19 +790,62 @@ def main():
         support = df.attrs.get("support")
         resistance = df.attrs.get("resistance")
 
-        col1, col2, col3, col4, col5 = st.columns([1.4, 1, 1, 1, 1])
-        with col1:
-            render_signal_badge(sig["signal"], sig["confidence"])
-        with col2:
-            st.metric("Last Price", f"₹{sig['last_price']:,.2f}")
-        with col3:
-            st.metric("Confidence", f"{sig['confidence']}%")
-        with col4:
-            label = "Stop Loss" if sig["signal"] != "HOLD" else "SL (est.)"
-            st.metric(label, f"₹{sig['stop_loss']:,.2f}")
-        with col5:
-            label = "Target" if sig["signal"] != "HOLD" else "Target (est.)"
-            st.metric(label, f"₹{sig['target']:,.2f}")
+        # ── Pre-load fundamentals + ML ─────────────────────────────────────────
+        with st.spinner("Analysing…"):
+            fund_data   = load_fundamentals(ticker)
+            fund_result = score_fundamentals(fund_data, current_price=sig["last_price"])
+            ml_result   = load_prediction(ticker, "2y")
+
+        # ── Derive per-source signals ──────────────────────────────────────────
+        # Technical
+        tech_signal = sig["signal"]
+        tech_conf   = sig["confidence"]
+
+        # Fundamentals → BUY / HOLD / SELL
+        if fund_result["score"] >= 60:
+            fund_signal, fund_conf = "BUY",  fund_result["score"]
+        elif fund_result["score"] < 40:
+            fund_signal, fund_conf = "SELL", 100 - fund_result["score"]
+        else:
+            fund_signal, fund_conf = "HOLD", fund_result["score"]
+
+        # ML
+        if ml_result.get("error"):
+            ml_signal, ml_conf = "HOLD", 50
+        else:
+            ml_signal = "BUY" if ml_result["direction"] == "UP" else "SELL"
+            ml_conf   = int(ml_result["probability"] * 100)
+
+        def _signal_card(col, icon, label, signal, conf, subtitle):
+            color = "#00C851" if signal == "BUY" else ("#ff4444" if signal == "SELL" else "#ffbb33")
+            col.markdown(
+                f"""
+                <div style="background:{color}14; border:2px solid {color}88;
+                            border-radius:12px; padding:14px 18px;
+                            min-height:120px; box-sizing:border-box;">
+                  <div style="font-size:0.75em; color:#aaa; margin-bottom:2px;">{icon} {label}</div>
+                  <div style="font-size:1.9em; font-weight:800; color:{color}; line-height:1.1;">{signal}</div>
+                  <div style="font-size:0.82em; color:{color}; opacity:0.85; margin-top:2px;">{subtitle}</div>
+                  <div style="background:rgba(255,255,255,0.08); border-radius:6px; height:6px;
+                              overflow:hidden; margin-top:8px;">
+                    <div style="width:{conf}%; background:{color}; height:100%; border-radius:6px;"></div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # ── Three signal cards + price info ───────────────────────────────────
+        card_tech, card_fund, card_ml, col_price, col_sl, col_tgt = st.columns([1.4, 1.4, 1.4, 1, 1, 1])
+        _signal_card(card_tech, "📊", "Technical",     tech_signal, tech_conf,
+                     f"Confidence: {tech_conf}%")
+        _signal_card(card_fund, "📋", "Fundamentals",  fund_signal, fund_conf,
+                     f"{fund_result['grade']} · Score {fund_result['score']}/100")
+        _signal_card(card_ml,   "🤖", "ML Prediction", ml_signal,  ml_conf,
+                     f"Model confidence: {ml_conf}%" if not ml_result.get("error") else "Unavailable")
+        col_price.metric("Last Price", f"₹{sig['last_price']:,.2f}")
+        col_sl.metric("Stop Loss",     f"₹{sig['stop_loss']:,.2f}")
+        col_tgt.metric("Target",       f"₹{sig['target']:,.2f}")
 
         st.divider()
 
@@ -736,109 +866,16 @@ def main():
                 st.dataframe(df.tail(50), width="stretch")
 
         with tab_fund:
-            render_fundamentals(ticker, sig["last_price"])
+            render_fundamentals(ticker, sig["last_price"], preloaded_data=fund_data, preloaded_result=fund_result)
 
         with tab_ml:
-            render_ml_prediction(df, ticker)
+            render_ml_prediction(df, ticker, preloaded_result=ml_result)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # SECTION: Index Options
-    # ══════════════════════════════════════════════════════════════════════════
     else:
-        index_names = {"NIFTY": "Nifty 50", "BANKNIFTY": "Bank Nifty", "MIDCPNIFTY": "Midcap Nifty"}
-        st.subheader(f"🎯 Options Recommendation — {index_names[opt_index]}")
+        with _header_placeholder:
+            page_header("NSE / BSE Trading Dashboard", "Real-time technical analysis · BUY / SELL / HOLD signals")
 
-        with st.spinner(f"Fetching {opt_index} options chain from NSE…"):
-            try:
-                opt_result = load_options(opt_index)
-            except ConnectionError as e:
-                st.error(f"NSE connection failed: {e}")
-                st.info("NSE occasionally blocks automated requests. Wait 10–15 seconds and click Refresh.")
-                st.stop()
-            except Exception as e:
-                st.error(f"Error: {e}")
-                st.stop()
-
-        # ── Header metrics ─────────────────────────────────────────────────
-        h1, h2, h3, h4, h5 = st.columns(5)
-        h1.metric(f"{opt_index} Spot", f"₹{opt_result['spot']:,.2f}")
-        h2.metric("Trend Signal", opt_result["underlying_signal"])
-        h3.metric("Confidence", f"{opt_result['confidence']}%")
-        pcr = opt_result.get("pcr") or {}
-        h4.metric("Put/Call Ratio", str(pcr.get("pcr", "N/A")), help=pcr.get("signal", ""))
-        if opt_result.get("max_pain"):
-            h5.metric("Max Pain", f"₹{opt_result['max_pain']:,.0f}", help="Strike where option buyers lose most near expiry")
-
-        st.markdown(f"**{opt_result['message']}** &nbsp;|&nbsp; *Data as of {opt_result.get('timestamp', 'N/A')}*")
-        st.divider()
-
-        if opt_result["underlying_signal"] == "HOLD":
-            st.warning("⏸️ No options trade recommended — trend signals are mixed. Wait for a clearer directional move.")
-        else:
-            recs = opt_result.get("recommendations", {})
-
-            col_intra, col_pos = st.columns(2)
-            with col_intra:
-                st.markdown("#### Intraday Trade")
-                render_option_card("Intraday", recs.get("intraday"), "#00C851" if opt_result["option_type"] == "CALL" else "#FF6B6B")
-                with st.expander("ℹ️ Intraday Rules"):
-                    st.markdown("""
-- **Entry**: At market open or on first 15-min candle confirmation
-- **Exit**: Compulsory before 3:15 PM — do NOT carry intraday options overnight
-- **Stop Loss**: Exit immediately if premium falls to the SL level shown above
-- **Strike**: ATM (At The Money) for maximum delta and quick response to index move
-""")
-
-            with col_pos:
-                st.markdown("#### Positional Trade (2–5 days)")
-                render_option_card("Positional", recs.get("positional"), "#00C851" if opt_result["option_type"] == "CALL" else "#FF6B6B")
-                with st.expander("ℹ️ Positional Rules"):
-                    st.markdown("""
-- **Entry**: End of day or on next morning's open
-- **Expiry**: Next weekly expiry (avoids aggressive theta on near expiry)
-- **Exit**: At target, at stop loss, or 1 day before expiry (whichever comes first)
-- **Risk**: Overnight gap risk — size positions accordingly (1 lot max to start)
-""")
-
-        # ── PCR + Max Pain context ─────────────────────────────────────────
-        st.divider()
-        st.markdown("#### Market Sentiment")
-        s1, s2 = st.columns(2)
-        with s1:
-            pcr_val = pcr.get("pcr")
-            if pcr_val:
-                pcr_color = "#00C851" if pcr_val > 1.2 else ("#ff4444" if pcr_val < 0.8 else "#ffbb33")
-                st.markdown(f"""
-<div style="border:1px solid {pcr_color}; border-radius:8px; padding:12px;">
-<b>Put/Call Ratio (OI): {pcr_val}</b><br>
-{pcr.get('signal', '')}
-<br><small>PCR > 1.2 = Bullish &nbsp;|&nbsp; PCR < 0.8 = Bearish &nbsp;|&nbsp; 0.8–1.2 = Neutral</small>
-</div>""", unsafe_allow_html=True)
-        with s2:
-            if opt_result.get("max_pain"):
-                st.markdown(f"""
-<div style="border:1px solid #888; border-radius:8px; padding:12px;">
-<b>Max Pain: ₹{opt_result['max_pain']:,.0f}</b><br>
-Market makers profit most if index closes here on expiry day.
-<br><small>Spot vs Max Pain: {'+' if opt_result['spot'] > opt_result['max_pain'] else ''}{opt_result['spot'] - opt_result['max_pain']:,.0f} pts</small>
-</div>""", unsafe_allow_html=True)
-
-        # ── Options chain table ────────────────────────────────────────────
-        st.divider()
-        st.markdown("#### Live Options Chain (ATM ± 10 strikes)")
-        try:
-            from tools.fetch_options_chain import fetch_options_chain
-            expiry_dates = opt_result.get("expiry_dates", [])
-            selected_expiry = st.selectbox("Expiry", expiry_dates) if expiry_dates else None
-            if selected_expiry:
-                chain_data = fetch_options_chain(opt_index, expiry=selected_expiry)
-                render_options_chain_table(chain_data["chain"], opt_result["spot"], selected_expiry, opt_index)
-        except Exception as e:
-            st.warning(f"Could not load options chain table: {e}")
-
-        # ── Indicator breakdown (underlying) ───────────────────────────────
-        with st.expander("View underlying indicator breakdown"):
-            render_indicator_table(opt_result["signal_components"])
+    # Index Options section now lives in index_options.py (reached via st.switch_page above)
 
 
 if __name__ == "__main__":
