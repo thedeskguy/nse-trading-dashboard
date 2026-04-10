@@ -11,4 +11,3 @@ streamlit-autorefresh>=1.0.1
 scikit-learn>=1.4.0
 logzero>=1.7.0
 websocket-client>=1.0.0
-pandas-ta>=0.4.71b0
