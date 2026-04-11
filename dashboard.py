@@ -751,7 +751,7 @@ def main():
             else:
                 ticker = "RELIANCE.NS"
                 selected_display = "Reliance Industries Limited"
-            interval = st.selectbox("Interval", ["5m", "15m", "30m", "1h", "1d", "1wk"], index=4)
+            interval = st.selectbox("Interval", ["5m", "15m", "30m", "1h", "1d", "1wk", "1mo"], index=4)
             valid_periods = VALID_COMBOS[interval]
             period = st.selectbox("Period", valid_periods, index=min(2, len(valid_periods) - 1))
         else:
@@ -835,24 +835,27 @@ def main():
                 unsafe_allow_html=True,
             )
 
-        # ── Three signal cards + price info ───────────────────────────────────
-        card_tech, card_fund, card_ml, col_price, col_sl, col_tgt = st.columns([1.4, 1.4, 1.4, 1, 1, 1])
-        _signal_card(card_tech, "📊", "Technical",     tech_signal, tech_conf,
-                     f"Confidence: {tech_conf}%")
-        _signal_card(card_fund, "📋", "Fundamentals",  fund_signal, fund_conf,
-                     f"{fund_result['grade']} · Score {fund_result['score']}/100")
-        _signal_card(card_ml,   "🤖", "ML Prediction", ml_signal,  ml_conf,
-                     f"Model confidence: {ml_conf}%" if not ml_result.get("error") else "Unavailable")
-        col_price.metric("Last Price", f"₹{sig['last_price']:,.2f}")
-        col_sl.metric("Stop Loss",     f"₹{sig['stop_loss']:,.2f}")
-        col_tgt.metric("Target",       f"₹{sig['target']:,.2f}")
-
-        st.divider()
+        # ── Unified (combined) signal via majority vote ────────────────────────
+        _vote_counts = {"BUY": 0, "SELL": 0, "HOLD": 0}
+        for _s in [tech_signal, fund_signal, ml_signal]:
+            _vote_counts[_s] += 1
+        unified_signal = max(_vote_counts, key=_vote_counts.get)
+        unified_conf   = (tech_conf + fund_conf + ml_conf) // 3
 
         tab_tech, tab_fund, tab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
 
         _zoom_cfg = {"scrollZoom": True, "displayModeBar": True, "plotGlPixelRatio": 1}
         with tab_tech:
+            # ── Technical signal card + Unified signal card + price metrics ───
+            c_tech, c_unified, c_price, c_sl, c_tgt = st.columns([1.5, 1.5, 1, 1, 1])
+            _signal_card(c_tech,    "📊", "Technical Signal",   tech_signal,    tech_conf,
+                         f"Confidence: {tech_conf}%")
+            _signal_card(c_unified, "🔮", "Combined Signal",    unified_signal, unified_conf,
+                         f"Tech + Fund + ML · avg {unified_conf}%")
+            c_price.metric("Last Price", f"₹{sig['last_price']:,.2f}")
+            c_sl.metric("Stop Loss",     f"₹{sig['stop_loss']:,.2f}")
+            c_tgt.metric("Target",       f"₹{sig['target']:,.2f}")
+            st.divider()
             st.plotly_chart(build_price_chart(df, support, resistance), width='stretch', config=_zoom_cfg, key="chart_price")
             col_rsi, col_macd = st.columns(2)
             with col_rsi:
@@ -866,9 +869,19 @@ def main():
                 st.dataframe(df.tail(50), width="stretch")
 
         with tab_fund:
+            # ── Fundamentals signal card ───────────────────────────────────────
+            c_fund, _ = st.columns([2, 3])
+            _signal_card(c_fund, "📋", "Fundamentals Signal", fund_signal, fund_conf,
+                         f"{fund_result['grade']} · Score {fund_result['score']}/100")
+            st.divider()
             render_fundamentals(ticker, sig["last_price"], preloaded_data=fund_data, preloaded_result=fund_result)
 
         with tab_ml:
+            # ── ML signal card ─────────────────────────────────────────────────
+            c_ml, _ = st.columns([2, 3])
+            _signal_card(c_ml, "🤖", "ML Prediction Signal", ml_signal, ml_conf,
+                         f"Model confidence: {ml_conf}%" if not ml_result.get("error") else "Unavailable")
+            st.divider()
             render_ml_prediction(df, ticker, preloaded_result=ml_result)
 
     else:
