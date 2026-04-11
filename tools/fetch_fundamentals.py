@@ -1,12 +1,102 @@
 """
 Fundamental analysis data fetcher.
-Primary source: yfinance Ticker.info — let yfinance manage its own session (yfinance 1.x
-uses curl_cffi internally and rejects external requests.Session objects).
-Fallback: compute key metrics from income_stmt + balance_sheet when .info returns empty.
+Primary source:  yfinance Ticker.info (covers analyst targets, EPS, PE, margins, etc.)
+Secondary:       Screener.in HTML scrape — free, India-specific, no API key needed.
+                 Fills gaps left by yfinance rate-limiting; adds ROCE which yfinance lacks.
+Fallback:        compute key metrics from income_stmt + balance_sheet when .info is empty.
 """
 
+import re
 import yfinance as yf
 import pandas as pd
+
+
+# ── Screener.in scraper ───────────────────────────────────────────────────────
+def _fetch_screener(ticker: str) -> dict:
+    """
+    Scrape key ratios from screener.in for NSE-listed stocks.
+    Returns a dict with fields ready to supplement yfinance data.
+    Fields returned (all None on failure):
+      pe_trailing, roe, roce, dividend_yield, market_cap,
+      book_value, industry_pe, debt_to_equity
+    """
+    import requests as _req
+
+    symbol = ticker.replace(".NS", "").replace(".BO", "").upper()
+    url = f"https://www.screener.in/company/{symbol}/"
+    try:
+        resp = _req.get(url, timeout=10, headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        if resp.status_code != 200:
+            return {}
+    except Exception:
+        return {}
+
+    html = resp.text
+
+    def _parse_num(s: str):
+        """Strip commas, units (Cr., %, etc.) and return float or None."""
+        s = re.sub(r"[,₹\s]", "", s.strip())
+        s = re.sub(r"(Cr\.?|Lakh|B|M|%)$", "", s, flags=re.IGNORECASE)
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    # Extract all <span class="name">...</span> ... <span class="number">...</span> pairs
+    pairs = re.findall(
+        r'<span[^>]*\bname\b[^>]*>\s*(.*?)\s*</span>.*?'
+        r'<span[^>]*\bnumber\b[^>]*>\s*(.*?)\s*</span>',
+        html, re.DOTALL | re.IGNORECASE,
+    )
+
+    raw: dict[str, float | None] = {}
+    for name, val in pairs:
+        name_clean = re.sub(r"<[^>]+>", "", name).strip()  # strip inner tags
+        raw[name_clean] = _parse_num(re.sub(r"<[^>]+>", "", val))
+
+    result: dict = {}
+
+    # PE
+    if raw.get("Stock P/E") is not None:
+        result["pe_trailing"] = raw["Stock P/E"]
+
+    # Industry PE
+    if raw.get("Industry P/E") is not None:
+        result["industry_pe"] = raw["Industry P/E"]
+
+    # ROE — screener shows as %, convert to fraction for consistency with yfinance
+    if raw.get("ROE") is not None:
+        result["roe"] = raw["ROE"] / 100.0
+
+    # ROCE — not in yfinance at all
+    if raw.get("ROCE") is not None:
+        result["roce"] = raw["ROCE"] / 100.0
+
+    # Dividend yield — screener shows as %, convert to fraction
+    if raw.get("Dividend Yield") is not None:
+        result["dividend_yield"] = raw["Dividend Yield"] / 100.0
+
+    # Market cap — screener in Cr, convert to absolute (1 Cr = 1e7)
+    if raw.get("Market Cap") is not None:
+        result["market_cap"] = raw["Market Cap"] * 1e7
+
+    # Book value (₹ per share)
+    if raw.get("Book Value") is not None:
+        result["book_value"] = raw["Book Value"]
+
+    # Debt to equity — screener shows direct ratio (not %)
+    if raw.get("Debt to equity") is not None:
+        result["debt_to_equity"] = raw["Debt to equity"] * 100  # match yfinance scale
+
+    return result
 
 
 # ── Statement row reader ───────────────────────────────────────────────────────
@@ -66,6 +156,7 @@ def fetch_fundamentals(ticker: str) -> dict:
         # Profitability
         "roe":             _get("returnOnEquity"),
         "roa":             _get("returnOnAssets"),
+        "roce":            None,   # not in yfinance; filled by screener.in
         "profit_margin":   _get("profitMargins"),
         "gross_margin":    _get("grossMargins"),
         "op_margin":       _get("operatingMargins"),
@@ -87,6 +178,8 @@ def fetch_fundamentals(ticker: str) -> dict:
         "market_cap":      _get("marketCap"),
         "beta":            _get("beta"),
         "week52_change":   _get("52WeekChange"),
+        "industry_pe":     None,  # from screener.in
+        "book_value":      None,  # from screener.in (₹/share)
         # Identity
         "name":            _get("shortName", cast=str),
         "sector":          _get("sector", cast=str),
@@ -97,6 +190,16 @@ def fetch_fundamentals(ticker: str) -> dict:
     useful = sum(1 for v in result.values() if v is not None)
     if useful < 4:
         result = _fill_from_statements(t, result)
+
+    # ── Step 3: supplement with Screener.in (fills Indian-specific gaps) ────────
+    try:
+        screener = _fetch_screener(ticker)
+        for field in ("pe_trailing", "roe", "roce", "dividend_yield",
+                      "market_cap", "book_value", "industry_pe", "debt_to_equity"):
+            if result.get(field) is None and screener.get(field) is not None:
+                result[field] = screener[field]
+    except Exception:
+        pass
 
     return result
 

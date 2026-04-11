@@ -174,7 +174,7 @@ def _x_labels(df: pd.DataFrame) -> list:
     return [ts.strftime('%b %d') if hasattr(ts, 'strftime') else str(ts) for ts in idx]
 
 
-def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
+def build_price_chart(df: pd.DataFrame, support, resistance, interval: str = "1d") -> go.Figure:
     fig = go.Figure()
     xlabels = _x_labels(df)
 
@@ -185,8 +185,8 @@ def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
         name="Price", increasing_line_color="#26a69a", decreasing_line_color="#ef5350",
     ))
 
-    # Bollinger Bands (shaded)
-    if "BB_upper" in df.columns:
+    # Bollinger Bands (shaded) — hide on monthly (too noisy)
+    if "BB_upper" in df.columns and interval not in ("1mo",):
         fig.add_trace(go.Scattergl(
             x=xlabels, y=df["BB_upper"], name="BB Upper",
             line=dict(color="rgba(150,150,255,0.5)", width=1), showlegend=True,
@@ -197,13 +197,21 @@ def build_price_chart(df: pd.DataFrame, support, resistance) -> go.Figure:
             fill="tonexty", fillcolor="rgba(150,150,255,0.07)", showlegend=True,
         ))
 
-    # EMAs
-    ema_colors = {"EMA_9": "#FFD700", "EMA_21": "#FF8C00", "EMA_50": "#00BFFF", "EMA_200": "#FF69B4"}
-    for col, color in ema_colors.items():
+    # EMAs — select relevant ones per interval to avoid clutter
+    if interval in ("1mo",):
+        active_emas = {"EMA_50": "#00BFFF", "EMA_200": "#FF69B4"}
+    elif interval in ("1wk",):
+        active_emas = {"EMA_21": "#FF8C00", "EMA_50": "#00BFFF", "EMA_200": "#FF69B4"}
+    elif interval in ("5m", "15m", "30m", "1h"):
+        active_emas = {"EMA_9": "#FFD700", "EMA_21": "#FF8C00"}
+    else:  # 1d default
+        active_emas = {"EMA_9": "#FFD700", "EMA_21": "#FF8C00", "EMA_50": "#00BFFF", "EMA_200": "#FF69B4"}
+
+    for col, color in active_emas.items():
         if col in df.columns:
             fig.add_trace(go.Scattergl(
                 x=xlabels, y=df[col], name=col.replace("_", " "),
-                line=dict(color=color, width=1.2),
+                line=dict(color=color, width=1.5),
             ))
 
     # Support / Resistance
@@ -491,21 +499,24 @@ def render_fundamentals(ticker: str, last_price: float, preloaded_data=None, pre
     # ── Valuation ─────────────────────────────────────────────────────────────
     st.markdown("#### Valuation")
     _show_metrics([
-        ("Trailing PE",  _fmt(data["pe_trailing"], "x"),  {}),
-        ("Forward PE",   _fmt(data["pe_forward"],  "x"),  {}),
-        ("Price / Book", _fmt(data["pb_ratio"],    "x"),  {}),
-        ("PEG Ratio",    _fmt(data["peg_ratio"],   "x"),  {}),
-        ("EV / EBITDA",  _fmt(data["ev_ebitda"],   "x"),  {}),
+        ("Trailing PE",  _fmt(data.get("pe_trailing"), "x"),  {}),
+        ("Forward PE",   _fmt(data.get("pe_forward"),  "x"),  {}),
+        ("Industry PE",  _fmt(data.get("industry_pe"), "x"),  {}),
+        ("Price / Book", _fmt(data.get("pb_ratio"),    "x"),  {}),
+        ("Book Value",   _fmt(data.get("book_value"),  prefix="₹"), {}),
+        ("PEG Ratio",    _fmt(data.get("peg_ratio"),   "x"),  {}),
+        ("EV / EBITDA",  _fmt(data.get("ev_ebitda"),   "x"),  {}),
     ])
 
     # ── Profitability ─────────────────────────────────────────────────────────
     st.markdown("#### Profitability")
     _show_metrics([
-        ("ROE",          _pct(data["roe"]),            {}),
-        ("ROA",          _pct(data["roa"]),            {}),
-        ("Net Margin",   _pct(data["profit_margin"]),  {}),
-        ("Gross Margin", _pct(data["gross_margin"]),   {}),
-        ("Op Margin",    _pct(data["op_margin"]),      {}),
+        ("ROE",          _pct(data.get("roe")),            {}),
+        ("ROCE",         _pct(data.get("roce")),           {}),
+        ("ROA",          _pct(data.get("roa")),            {}),
+        ("Net Margin",   _pct(data.get("profit_margin")),  {}),
+        ("Gross Margin", _pct(data.get("gross_margin")),   {}),
+        ("Op Margin",    _pct(data.get("op_margin")),      {}),
     ])
 
     # ── Growth & Health ───────────────────────────────────────────────────────
@@ -856,7 +867,7 @@ def main():
             c_sl.metric("Stop Loss",     f"₹{sig['stop_loss']:,.2f}")
             c_tgt.metric("Target",       f"₹{sig['target']:,.2f}")
             st.divider()
-            st.plotly_chart(build_price_chart(df, support, resistance), width='stretch', config=_zoom_cfg, key="chart_price")
+            st.plotly_chart(build_price_chart(df, support, resistance, interval=interval), width='stretch', config=_zoom_cfg, key="chart_price")
             col_rsi, col_macd = st.columns(2)
             with col_rsi:
                 st.plotly_chart(build_rsi_chart(df), width='stretch', config=_zoom_cfg, key="chart_rsi")
