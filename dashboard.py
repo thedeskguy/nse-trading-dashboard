@@ -479,19 +479,19 @@ def render_fundamentals(ticker: str, last_price: float, preloaded_data=None, pre
     st.divider()
 
     def _fmt(val, suffix="", prefix=""):
-        return f"{prefix}{val:.2f}{suffix}" if val is not None else None
+        return f"{prefix}{val:.2f}{suffix}" if val is not None else "N/A"
+
+    def _fmt_cr(val):
+        """Format a value in Crores with comma separation."""
+        return f"₹{val:,.0f} Cr" if val is not None else "N/A"
 
     def _pct(val):
-        return f"{val*100:.1f}%" if val is not None else None
+        return f"{val*100:.1f}%" if val is not None else "N/A"
 
     def _show_metrics(items, max_cols=5):
-        """Render only metrics whose value is not None, up to max_cols per row."""
-        available = [(label, val, kw) for label, val, kw in items if val is not None]
-        if not available:
-            st.caption("No data available.")
-            return
-        for i in range(0, len(available), max_cols):
-            chunk = available[i:i + max_cols]
+        """Render ALL metrics — shows 'N/A' for missing values so nothing is hidden."""
+        for i in range(0, len(items), max_cols):
+            chunk = items[i:i + max_cols]
             cols = st.columns(len(chunk))
             for col, (label, val, kw) in zip(cols, chunk):
                 col.metric(label, val, **kw)
@@ -499,36 +499,56 @@ def render_fundamentals(ticker: str, last_price: float, preloaded_data=None, pre
     # ── Valuation ─────────────────────────────────────────────────────────────
     st.markdown("#### Valuation")
     _show_metrics([
-        ("Trailing PE",  _fmt(data.get("pe_trailing"), "x"),  {}),
-        ("Forward PE",   _fmt(data.get("pe_forward"),  "x"),  {}),
-        ("Price / Book", _fmt(data.get("pb_ratio"),    "x"),  {}),
+        ("Trailing PE",  _fmt(data.get("pe_trailing"), "x"),        {}),
+        ("Forward PE",   _fmt(data.get("pe_forward"),  "x"),        {}),
+        ("Price / Book", _fmt(data.get("pb_ratio"),    "x"),        {}),
         ("Book Value",   _fmt(data.get("book_value"),  prefix="₹"), {}),
-        ("PEG Ratio",    _fmt(data.get("peg_ratio"),   "x"),  {}),
-        ("EV / EBITDA",  _fmt(data.get("ev_ebitda"),   "x"),  {}),
+        ("EV / EBITDA",  _fmt(data.get("ev_ebitda"),   "x"),        {}),
     ])
 
     # ── Profitability ─────────────────────────────────────────────────────────
     st.markdown("#### Profitability")
     _show_metrics([
-        ("ROE",          _pct(data.get("roe")),            {}),
-        ("ROCE",         _pct(data.get("roce")),           {}),
-        ("ROA",          _pct(data.get("roa")),            {}),
-        ("Net Margin",   _pct(data.get("profit_margin")),  {}),
-        ("Gross Margin", _pct(data.get("gross_margin")),   {}),
-        ("Op Margin",    _pct(data.get("op_margin")),      {}),
+        ("ROE",        _pct(data.get("roe")),           {}),
+        ("ROCE",       _pct(data.get("roce")),          {}),
+        ("Net Margin", _pct(data.get("profit_margin")), {}),
+        ("Op Margin",  _pct(data.get("op_margin")),     {}),
+        ("Int. Cover", _fmt(data.get("interest_coverage"), "x"), {}),
     ])
 
-    # ── Growth & Health ───────────────────────────────────────────────────────
-    st.markdown("#### Growth & Financial Health")
+    # ── Income ────────────────────────────────────────────────────────────────
+    st.markdown("#### Income (Latest Annual, Cr)")
     _show_metrics([
-        ("Revenue Growth",  _pct(data.get("revenue_growth")),  {}),
-        ("Earnings Growth", _pct(data.get("earnings_growth")), {}),
-        ("Debt / Equity",   _fmt(data.get("debt_to_equity")),  {}),
-        ("Current Ratio",   _fmt(data.get("current_ratio")),   {}),
-        ("Quick Ratio",     _fmt(data.get("quick_ratio")),     {}),
-        ("Dividend Yield",  _pct(data.get("dividend_yield")),  {}),
-        ("Payout Ratio",    _pct(data.get("payout_ratio")),    {}),
+        ("Revenue",        _fmt_cr(data.get("revenue")),    {}),
+        ("Op Profit",      _fmt_cr(data.get("op_profit")),  {}),
+        ("Net Profit",     _fmt_cr(data.get("net_profit")), {}),
+        ("Dividend Yield", _pct(data.get("dividend_yield")), {}),
+        ("Market Cap",     _fmt_cr(data.get("market_cap") / 1e7 if data.get("market_cap") else None), {}),
     ])
+
+    # ── Growth ────────────────────────────────────────────────────────────────
+    st.markdown("#### Growth (YoY)")
+    _show_metrics([
+        ("Revenue Growth", _pct(data.get("revenue_growth")), {}),
+        ("Profit Growth",  _pct(data.get("profit_growth")),  {}),
+    ], max_cols=5)
+
+    # ── Financial Health ──────────────────────────────────────────────────────
+    st.markdown("#### Financial Health")
+    _show_metrics([
+        ("Debt (Cr)",    _fmt_cr(data.get("debt")),                {}),
+        ("Equity (Cr)",  _fmt_cr(data.get("equity")),              {}),
+        ("Debt / Equity",_fmt(data.get("debt_to_equity")),         {}),
+        ("Face Value",   _fmt(data.get("face_value"), prefix="₹"), {}),
+        ("Beta",         _fmt(data.get("beta")),                   {}),
+    ])
+
+    # ── 52-week range ─────────────────────────────────────────────────────────
+    st.markdown("#### 52-Week Price Range")
+    _show_metrics([
+        ("52W High", _fmt(data.get("high_52w"), prefix="₹"), {}),
+        ("52W Low",  _fmt(data.get("low_52w"),  prefix="₹"), {}),
+    ], max_cols=5)
 
     st.divider()
 
@@ -539,22 +559,19 @@ def render_fundamentals(ticker: str, last_price: float, preloaded_data=None, pre
     if target and last_price:
         upside = (target - last_price) / last_price * 100
         upside_delta = f"{upside:+.1f}%"
-    rec = (data.get("recommendation") or "").replace("_", " ").title() or None
+    rec = (data.get("recommendation") or "").replace("_", " ").title() or "N/A"
     _show_metrics([
-        ("Recommendation", rec,                                                          {}),
-        ("Target Price",   f"₹{target:.2f}" if target else None,                        {"delta": upside_delta}),
-        ("Analyst Count",  str(data["analyst_count"]) if data.get("analyst_count") else None, {}),
+        ("Recommendation", rec,                                                              {}),
+        ("Target Price",   f"₹{target:.2f}" if target else "N/A",                          {"delta": upside_delta}),
+        ("Analyst Count",  str(data["analyst_count"]) if data.get("analyst_count") else "N/A", {}),
     ])
 
     st.divider()
 
     # ── Company info ──────────────────────────────────────────────────────────
-    mcap = data.get("market_cap")
     _show_metrics([
-        ("Market Cap", f"₹{mcap/1e7:,.0f} Cr" if mcap else None,  {}),
-        ("Beta",       _fmt(data.get("beta")),                      {}),
-        ("Sector",     data.get("sector") or None,                  {}),
-        ("Industry",   data.get("industry") or None,                {}),
+        ("Sector",   data.get("sector")   or "N/A", {}),
+        ("Industry", data.get("industry") or "N/A", {}),
     ])
 
 
