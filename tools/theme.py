@@ -18,207 +18,317 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800&display=swap');
 
-        /* ── Root & background ───────────────────────────────── */
+        /* ── Root ────────────────────────────────────────────── */
         html, body, .stApp {
-            font-family: 'Inter', sans-serif !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+            -webkit-font-smoothing: antialiased;
         }
         .stApp {
-            background: linear-gradient(160deg, #080b10 0%, #0a0f0d 60%, #080b10 100%);
+            background: #080c0b;
         }
 
         /* ── Hide Streamlit chrome ───────────────────────────── */
         #MainMenu, footer { visibility: hidden; }
         [data-testid="stHeader"] { background: transparent; }
 
+        /* ── Main content area ───────────────────────────────── */
+        .main .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 2rem !important;
+        }
+
         /* ── Sidebar ─────────────────────────────────────────── */
         section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #0d1117 0%, #090d0b 100%);
-            border-right: 1px solid rgba(0,212,160,0.18);
+            background: #0a0e0d;
+            border-right: 1px solid rgba(255,255,255,0.06);
+        }
+        section[data-testid="stSidebar"] h1,
+        section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] h3 {
+            color: rgba(255,255,255,0.9) !important;
+            font-size: 0.8rem !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.08em !important;
+            text-transform: uppercase !important;
         }
 
         /* ── Metric cards ────────────────────────────────────── */
         div[data-testid="metric-container"] {
-            background: rgba(255,255,255,0.035);
+            background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 12px;
-            padding: 18px 20px 14px;
-            transition: border-color 0.2s, background 0.2s;
+            border-radius: 16px;
+            padding: 16px 18px 13px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.15);
+            transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
         }
         div[data-testid="metric-container"]:hover {
-            border-color: rgba(0,212,160,0.35);
-            background: rgba(0,212,160,0.05);
+            border-color: rgba(0,212,160,0.28);
+            background: rgba(0,212,160,0.04);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,212,160,0.1);
         }
         div[data-testid="stMetricLabel"] > div {
-            color: #7a8a88 !important;
-            font-size: 0.7rem !important;
-            font-weight: 600 !important;
+            color: rgba(255,255,255,0.38) !important;
+            font-size: 0.68rem !important;
+            font-weight: 500 !important;
             text-transform: uppercase;
-            letter-spacing: 0.6px;
+            letter-spacing: 0.07em;
         }
         div[data-testid="stMetricValue"] > div {
-            color: #f0f0f0 !important;
-            font-size: 1.45rem !important;
-            font-weight: 700 !important;
+            color: rgba(255,255,255,0.92) !important;
+            font-size: 1.35rem !important;
+            font-weight: 600 !important;
+            letter-spacing: -0.02em;
         }
         div[data-testid="stMetricDelta"] > div {
-            font-size: 0.8rem !important;
+            font-size: 0.75rem !important;
             font-weight: 500 !important;
         }
 
-        /* ── Buttons ─────────────────────────────────────────── */
+        /* ── Refresh button ──────────────────────────────────── */
         .stButton > button {
-            background: linear-gradient(135deg, #00d4a0 0%, #00a87f 100%) !important;
-            color: #060b09 !important;
-            font-weight: 700 !important;
-            border: none !important;
-            border-radius: 8px !important;
+            background: rgba(0,212,160,0.1) !important;
+            color: #00d4a0 !important;
+            font-weight: 600 !important;
+            border: 1px solid rgba(0,212,160,0.3) !important;
+            border-radius: 10px !important;
             padding: 8px 20px !important;
             font-family: 'Inter', sans-serif !important;
-            letter-spacing: 0.3px;
-            transition: box-shadow 0.2s, transform 0.15s !important;
+            font-size: 0.85rem !important;
+            letter-spacing: 0.01em;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
         }
         .stButton > button:hover {
-            box-shadow: 0 0 18px rgba(0,212,160,0.45) !important;
+            background: rgba(0,212,160,0.18) !important;
+            border-color: rgba(0,212,160,0.55) !important;
+            box-shadow: 0 4px 14px rgba(0,212,160,0.15) !important;
             transform: translateY(-1px) !important;
         }
-        .stButton > button:active { transform: translateY(0) !important; }
+        .stButton > button:active {
+            transform: translateY(0) !important;
+            box-shadow: none !important;
+        }
 
         /* ── Tabs ────────────────────────────────────────────── */
         .stTabs [data-baseweb="tab-list"] {
-            background: rgba(255,255,255,0.03);
-            border-radius: 10px;
-            padding: 4px;
-            gap: 4px;
-            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.025);
+            border-radius: 12px;
+            padding: 4px 5px;
+            gap: 2px;
+            border: 1px solid rgba(255,255,255,0.055);
         }
         .stTabs [data-baseweb="tab"] {
-            border-radius: 7px;
-            color: #778;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.38);
             font-weight: 500;
+            font-size: 0.875rem;
             border: none !important;
-            transition: all 0.15s;
+            padding: 7px 18px !important;
+            transition: all 0.18s ease;
+            letter-spacing: 0.01em;
         }
         .stTabs [data-baseweb="tab"]:hover {
-            color: #ccc;
+            color: rgba(255,255,255,0.72);
             background: rgba(255,255,255,0.05) !important;
         }
         .stTabs [aria-selected="true"] {
-            background: rgba(0,212,160,0.12) !important;
+            background: rgba(0,212,160,0.1) !important;
             color: #00d4a0 !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2) !important;
         }
         .stTabs [data-baseweb="tab-highlight"] {
-            background: #00d4a0 !important;
-            height: 2px !important;
+            display: none !important;
+        }
+        .stTabs [data-baseweb="tab-border"] {
+            display: none !important;
         }
 
         /* ── Expanders ───────────────────────────────────────── */
         div[data-testid="stExpander"] {
             border: 1px solid rgba(255,255,255,0.07) !important;
-            border-radius: 10px !important;
+            border-radius: 14px !important;
             overflow: hidden;
+            background: rgba(255,255,255,0.02) !important;
         }
         div[data-testid="stExpander"] summary {
-            background: rgba(255,255,255,0.025) !important;
-            padding: 10px 16px !important;
+            background: transparent !important;
+            padding: 12px 18px !important;
             font-weight: 500 !important;
+            color: rgba(255,255,255,0.6) !important;
+            font-size: 0.88rem !important;
         }
         div[data-testid="stExpander"] summary:hover {
-            background: rgba(0,212,160,0.06) !important;
+            color: rgba(255,255,255,0.85) !important;
         }
 
         /* ── Dividers ────────────────────────────────────────── */
         hr {
             border: none !important;
-            border-top: 1px solid rgba(0,212,160,0.14) !important;
-            margin: 20px 0 !important;
+            border-top: 1px solid rgba(255,255,255,0.07) !important;
+            margin: 22px 0 !important;
         }
 
         /* ── Headings ────────────────────────────────────────── */
         h1 {
             font-family: 'Inter', sans-serif !important;
-            font-weight: 800 !important;
-            letter-spacing: -0.5px !important;
-            color: #f5f5f5 !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.03em !important;
+            color: rgba(255,255,255,0.94) !important;
         }
         h2 {
             font-family: 'Inter', sans-serif !important;
-            font-weight: 700 !important;
-            color: #e0e0e0 !important;
+            font-weight: 600 !important;
+            letter-spacing: -0.02em !important;
+            color: rgba(255,255,255,0.82) !important;
         }
         h3 {
             font-family: 'Inter', sans-serif !important;
             font-weight: 600 !important;
-            color: #00d4a0 !important;
+            letter-spacing: -0.01em !important;
+            color: rgba(255,255,255,0.75) !important;
         }
 
         /* ── Inputs & selects ────────────────────────────────── */
         [data-testid="stSelectbox"] > div > div {
             background: rgba(255,255,255,0.04) !important;
-            border-color: rgba(255,255,255,0.1) !important;
-            border-radius: 8px !important;
+            border: 1px solid rgba(255,255,255,0.09) !important;
+            border-radius: 10px !important;
+            transition: border-color 0.2s ease !important;
+        }
+        [data-testid="stSelectbox"] > div > div:focus-within {
+            border-color: rgba(0,212,160,0.45) !important;
         }
         [data-testid="stTextInput"] input {
             background: rgba(255,255,255,0.04) !important;
-            border-color: rgba(255,255,255,0.1) !important;
-            border-radius: 8px !important;
-            color: #e0e0e0 !important;
-        }
-
-        /* ── Slider ──────────────────────────────────────────── */
-        [data-testid="stSlider"] [role="slider"] {
-            background: #00d4a0 !important;
-            border-color: #00d4a0 !important;
+            border: 1px solid rgba(255,255,255,0.09) !important;
+            border-radius: 10px !important;
+            color: rgba(255,255,255,0.88) !important;
         }
 
         /* ── Alerts ──────────────────────────────────────────── */
-        [data-testid="stAlert"] { border-radius: 10px !important; }
+        [data-testid="stAlert"] {
+            border-radius: 12px !important;
+            border-width: 1px !important;
+        }
 
         /* ── Captions ────────────────────────────────────────── */
-        [data-testid="stCaptionContainer"] { color: #556 !important; }
+        [data-testid="stCaptionContainer"] {
+            color: rgba(255,255,255,0.28) !important;
+            font-size: 0.75rem !important;
+        }
 
-        /* ── Mobile / responsive ─────────────────────────────── */
+        /* ── Dataframes ──────────────────────────────────────── */
+        [data-testid="stDataFrame"] {
+            border-radius: 12px !important;
+            overflow: hidden;
+        }
+
+        /* ── Mobile ──────────────────────────────────────────── */
         @media (max-width: 768px) {
-            /* Always show Plotly toolbar on touch screens */
             .modebar { opacity: 1 !important; }
-            /* Larger touch targets for modebar buttons */
             .modebar-btn { padding: 8px 10px !important; }
-            /* Stack metric columns on narrow screens */
-            [data-testid="stHorizontalBlock"] {
-                flex-wrap: wrap !important;
-            }
+            [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; }
             [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlockBorderWrapper"] {
                 min-width: 45% !important;
                 flex: 1 1 45% !important;
             }
-            /* Reduce padding on mobile */
             .main .block-container {
                 padding-left: 0.75rem !important;
                 padding-right: 0.75rem !important;
             }
         }
 
-        /* ── Signal badge pulse animations ───────────────────── */
+        /* ── Signal badge animations ─────────────────────────── */
         @keyframes pulse-buy {
-            0%, 100% { box-shadow: 0 0 8px rgba(0,200,81,0.3); }
-            50%       { box-shadow: 0 0 22px rgba(0,200,81,0.7), 0 0 40px rgba(0,200,81,0.2); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0,200,81,0); }
+            50%       { box-shadow: 0 0 20px 2px rgba(0,200,81,0.18); }
         }
         @keyframes pulse-sell {
-            0%, 100% { box-shadow: 0 0 8px rgba(255,68,68,0.3); }
-            50%       { box-shadow: 0 0 22px rgba(255,68,68,0.7), 0 0 40px rgba(255,68,68,0.2); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,68,68,0); }
+            50%       { box-shadow: 0 0 20px 2px rgba(255,68,68,0.18); }
         }
         @keyframes pulse-hold {
-            0%, 100% { box-shadow: 0 0 8px rgba(255,187,51,0.25); }
-            50%       { box-shadow: 0 0 18px rgba(255,187,51,0.55), 0 0 32px rgba(255,187,51,0.15); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,187,51,0); }
+            50%       { box-shadow: 0 0 16px 2px rgba(255,187,51,0.15); }
         }
-        .sig-badge-buy  { animation: pulse-buy  2.2s ease-in-out infinite; }
-        .sig-badge-sell { animation: pulse-sell 2.2s ease-in-out infinite; }
-        .sig-badge-hold { animation: pulse-hold 2.2s ease-in-out infinite; }
+        .sig-badge-buy  { animation: pulse-buy  3s ease-in-out infinite; }
+        .sig-badge-sell { animation: pulse-sell 3s ease-in-out infinite; }
+        .sig-badge-hold { animation: pulse-hold 3s ease-in-out infinite; }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+_NAV_CSS = """
+<style>
+.app-nav {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    margin-bottom: 16px;
+    align-items: center;
+}
+.app-nav a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 138px;
+    padding: 10px 22px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    text-decoration: none !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: rgba(255,255,255,0.42) !important;
+    letter-spacing: 0.01em;
+    transition: all 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    white-space: nowrap;
+    cursor: pointer;
+}
+.app-nav a:hover {
+    background: rgba(255,255,255,0.07) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+    color: rgba(255,255,255,0.75) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(0,0,0,0.28);
+    text-decoration: none !important;
+}
+.app-nav a.nav-active {
+    background: rgba(0,212,160,0.09) !important;
+    border-color: rgba(0,212,160,0.4) !important;
+    color: #00d4a0 !important;
+    box-shadow: 0 4px 16px rgba(0,212,160,0.12), 0 1px 3px rgba(0,0,0,0.2) !important;
+    pointer-events: none;
+    cursor: default;
+}
+</style>
+"""
+
+
+def render_nav(active: str) -> None:
+    """Render the top navigation bar as three HTML anchor boxes.
+
+    active: one of 'equities', 'options', 'about'
+    """
+    def _cls(key: str) -> str:
+        return 'nav-active' if active == key else ''
+
+    html = (
+        _NAV_CSS
+        + f"""
+<nav class="app-nav">
+  <a href="/" class="{_cls('equities')}">📈 Equities</a>
+  <a href="/index_options" class="{_cls('options')}">🎯 Index Options</a>
+  <a href="/about" class="{_cls('about')}">ℹ️ About</a>
+</nav>
+"""
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def signal_badge(signal: str, confidence: int, subtitle: str = "") -> str:
@@ -248,17 +358,15 @@ def signal_badge(signal: str, confidence: int, subtitle: str = "") -> str:
 def page_header(title: str, subtitle: str = "") -> None:
     """Render a styled page header with optional subtitle."""
     sub_html = (
-        f'<p style="color:#556;font-size:0.85rem;margin:4px 0 0;font-weight:400;">{subtitle}</p>'
+        f'<p style="color:rgba(255,255,255,0.35);font-size:0.82rem;margin:5px 0 0;'
+        f'font-weight:400;letter-spacing:0.01em;">{subtitle}</p>'
         if subtitle else ""
     )
     st.markdown(
         f"""
-        <div style="
-            border-left: 3px solid #00d4a0;
-            padding: 10px 0 10px 16px;
-            margin-bottom: 8px;
-        ">
-            <h1 style="margin:0;font-size:1.6rem;">{title}</h1>
+        <div style="padding: 4px 0 12px 0; margin-bottom: 4px;">
+            <h1 style="margin:0;font-size:1.55rem;font-weight:700;
+                       color:rgba(255,255,255,0.93);letter-spacing:-0.03em;">{title}</h1>
             {sub_html}
         </div>
         """,

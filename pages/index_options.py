@@ -13,7 +13,7 @@ from streamlit_autorefresh import st_autorefresh
 
 from tools.analyze_options import recommend_option
 from tools.fetch_options_chain import fetch_options_chain, get_nearest_atm_strike
-from tools.theme import inject_css, signal_badge, page_header
+from tools.theme import inject_css, signal_badge, page_header, render_nav
 from tools.fetch_stock_data import fetch_ohlcv
 from tools.compute_indicators import compute_all
 
@@ -740,13 +740,9 @@ def main():
         initial_sidebar_state="collapsed",
     )
     inject_css()
+    render_nav("options")
 
     with st.sidebar:
-        if st.button("← Dashboard", use_container_width=True):
-            st.switch_page("dashboard.py")
-        if st.button("ℹ️ About", use_container_width=True):
-            st.switch_page("pages/about.py")
-
         st.divider()
         st.subheader("⚡ Live Refresh")
         refresh_options = {"Off": 0, "30 sec": 30, "1 min": 60, "2 min": 120, "5 min": 300}
@@ -786,8 +782,7 @@ def main():
     st.caption(
         "Signal based on daily trend (RSI, MACD, EMA, Bollinger, OBV). "
         "Options data live from NSE via Angel One. "
-        "SL and Target are on the premium — not the underlying price. "
-        "Not financial advice. Always use a stop loss."
+        "SL and Target are on the premium — not the underlying price."
     )
 
 

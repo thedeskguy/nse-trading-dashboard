@@ -15,7 +15,7 @@ from tools.fetch_stock_data import fetch_ohlcv, VALID_COMBOS
 from tools.compute_indicators import compute_all
 from tools.generate_signals import generate_signal
 from tools.analyze_options import recommend_option
-from tools.theme import inject_css, signal_badge, page_header
+from tools.theme import inject_css, signal_badge, page_header, render_nav
 from tools.fetch_fundamentals import fetch_fundamentals, score_fundamentals
 from tools.ml_predictor import train_and_predict
 
@@ -643,11 +643,6 @@ def render_ml_prediction(df: pd.DataFrame, ticker: str, preloaded_result=None) -
     )
     st.plotly_chart(fig, width="stretch")
 
-    st.caption(
-        f"Model: Random Forest (100 trees) · Trained on {result['train_samples']} days · "
-        f"Tested on {result['test_samples']} days · "
-        "⚠️ ML predictions are probabilistic. Not financial advice."
-    )
 
 
 # ── Main app ───────────────────────────────────────────────────────────────────
@@ -660,51 +655,7 @@ def main():
     inject_css()
 
     # ── Top navbar ─────────────────────────────────────────────────────────────
-    st.markdown("""
-    <style>
-    /* Navbar pill styling */
-    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] {
-        gap: 6px;
-    }
-    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label {
-        background: rgba(255,255,255,0.04);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 10px;
-        padding: 9px 28px;
-        cursor: pointer;
-        font-weight: 600;
-        font-size: 0.97rem;
-        transition: all 0.15s;
-        color: rgba(255,255,255,0.55);
-    }
-    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label:hover {
-        background: rgba(0,212,160,0.07);
-        border-color: rgba(0,212,160,0.35);
-        color: rgba(0,212,160,0.85);
-    }
-    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label:has(input:checked) {
-        background: rgba(0,212,160,0.13) !important;
-        border-color: rgba(0,212,160,0.55) !important;
-        color: #00d4a0 !important;
-    }
-    div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label > div:first-child {
-        display: none;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    section = st.radio(
-        "nav",
-        ["📈 Equities", "🎯 Index Options", "ℹ️ About"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="top_nav",
-    )
-
-    if section == "🎯 Index Options":
-        st.switch_page("pages/index_options.py")
-    if section == "ℹ️ About":
-        st.switch_page("pages/about.py")
+    render_nav("equities")
     st.divider()
 
     _header_placeholder = st.empty()
@@ -714,210 +665,175 @@ def main():
         st.header("Settings")
         st.divider()
 
-        if section == "📈 Equities":
-            @st.cache_data(ttl=86400, show_spinner=False)
-            def _build_unified_options() -> list[tuple[str, str]]:
-                """Fetch full NSE equity list from NSE archives.
-                Returns list of (display_label, nse_symbol) where display_label =
-                'Company Full Name (TICKER)' — searchable by either.
-                Filters out test/numeric symbols. Default sorted by company name.
-                """
-                import io
-                import requests as _req
-                try:
-                    resp = _req.get(
-                        "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
-                        timeout=15,
-                        headers={"User-Agent": "Mozilla/5.0"},
-                    )
-                    resp.raise_for_status()
-                    import pandas as _pd
-                    df = _pd.read_csv(io.StringIO(resp.text))
-                    sym_col  = "SYMBOL"
-                    name_col = "NAME OF COMPANY"
-                    df = df[[sym_col, name_col]].dropna()
-                    df.columns = ["sym", "name"]
-                    # Filter out test entries and purely numeric symbols
-                    df = df[~df["sym"].str.contains("NSETEST", na=False)]
-                    df = df[~df["sym"].str.match(r"^\d", na=False)]
-                    df["name"] = df["name"].str.strip().str.title()
-                    df["sym"]  = df["sym"].str.strip().str.upper()
-                    df = df.sort_values("name")
-                    return [(f"{row.name} ({row.sym})", row.sym) for row in df.itertuples(index=False)]
-                except Exception:
-                    # Fallback to hardcoded list
-                    all_stocks = {**NIFTY50, **OTHER_STOCKS}
-                    entries = sorted(
-                        [(f"{name} ({v.replace('.NS','').replace('.BO','')})",
-                          v.replace(".NS","").replace(".BO",""))
-                         for name, v in all_stocks.items()],
-                        key=lambda x: x[0]
-                    )
-                    return entries
+        @st.cache_data(ttl=86400, show_spinner=False)
+        def _build_unified_options() -> list[tuple[str, str]]:
+            """Fetch full NSE equity list from NSE archives."""
+            import io
+            import requests as _req
+            try:
+                resp = _req.get(
+                    "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
+                    timeout=15,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                resp.raise_for_status()
+                import pandas as _pd
+                df = _pd.read_csv(io.StringIO(resp.text))
+                sym_col  = "SYMBOL"
+                name_col = "NAME OF COMPANY"
+                df = df[[sym_col, name_col]].dropna()
+                df.columns = ["sym", "name"]
+                df = df[~df["sym"].str.contains("NSETEST", na=False)]
+                df = df[~df["sym"].str.match(r"^\d", na=False)]
+                df["name"] = df["name"].str.strip().str.title()
+                df["sym"]  = df["sym"].str.strip().str.upper()
+                df = df.sort_values("name")
+                return [(f"{row.name} ({row.sym})", row.sym) for row in df.itertuples(index=False)]
+            except Exception:
+                all_stocks = {**NIFTY50, **OTHER_STOCKS}
+                entries = sorted(
+                    [(f"{name} ({v.replace('.NS','').replace('.BO','')})",
+                      v.replace(".NS","").replace(".BO",""))
+                     for name, v in all_stocks.items()],
+                    key=lambda x: x[0]
+                )
+                return entries
 
-            unified_options = _build_unified_options()
-            labels  = [label for label, _ in unified_options]
-            sym_map = {label: sym for label, sym in unified_options}
-            # name lookup: "RELIANCE" → "Reliance Industries Limited"
-            sym_to_name = {sym: label.rsplit(" (", 1)[0] for label, sym in unified_options}
+        unified_options = _build_unified_options()
+        labels  = [label for label, _ in unified_options]
+        sym_map = {label: sym for label, sym in unified_options}
+        sym_to_name = {sym: label.rsplit(" (", 1)[0] for label, sym in unified_options}
 
-            # Default to Reliance Industries
-            default_idx = next(
-                (i + 1 for i, (_, s) in enumerate(unified_options) if s == "RELIANCE"),
-                1,
-            )
-            sel_label = st.selectbox(
-                "Search stock (name or ticker)",
-                options=[""] + labels,
-                index=default_idx,
-                format_func=lambda x: "— type name or ticker —" if x == "" else x,
-            )
+        default_idx = next(
+            (i + 1 for i, (_, s) in enumerate(unified_options) if s == "RELIANCE"),
+            1,
+        )
+        sel_label = st.selectbox(
+            "Search stock (name or ticker)",
+            options=[""] + labels,
+            index=default_idx,
+            format_func=lambda x: "— type name or ticker —" if x == "" else x,
+        )
 
-            if sel_label:
-                raw_sym = sym_map[sel_label]
-                ticker  = raw_sym + ".NS"
-                selected_display = sym_to_name.get(raw_sym, raw_sym)
-            else:
-                ticker = "RELIANCE.NS"
-                selected_display = "Reliance Industries Limited"
-            interval = st.selectbox("Interval", ["5m", "15m", "30m", "1h", "1d", "1wk"], index=4)
-            valid_periods = VALID_COMBOS[interval]
-            period = st.selectbox("Period", valid_periods, index=min(2, len(valid_periods) - 1))
+        if sel_label:
+            raw_sym = sym_map[sel_label]
+            ticker  = raw_sym + ".NS"
+            selected_display = sym_to_name.get(raw_sym, raw_sym)
         else:
-            opt_index = st.selectbox(
-                "Select Index",
-                ["NIFTY", "BANKNIFTY", "MIDCPNIFTY"],
-                format_func=lambda x: {"NIFTY": "Nifty 50", "BANKNIFTY": "Bank Nifty", "MIDCPNIFTY": "Midcap Nifty"}[x],
-            )
+            ticker = "RELIANCE.NS"
+            selected_display = "Reliance Industries Limited"
+        interval = st.selectbox("Interval", ["5m", "15m", "30m", "1h", "1d", "1wk"], index=4)
+        valid_periods = VALID_COMBOS[interval]
+        period = st.selectbox("Period", valid_periods, index=min(2, len(valid_periods) - 1))
 
         refresh = st.button("🔄 Refresh")
         if refresh:
             st.cache_data.clear()
 
         st.divider()
-        st.caption("📡 Equity data: Angel One → Yahoo Finance fallback")
-        st.caption("Options data: NSE live chain")
-        st.caption("⚠️ For educational purposes only. Not financial advice.")
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # ══════════════════════════════════════════════════════════════════════════
-    # SECTION: Equities
-    # ══════════════════════════════════════════════════════════════════════════
-    if section == "📈 Equities":
-        # Fill header now that we know the selected stock
-        with _header_placeholder:
-            page_header(selected_display, "Real-time technical analysis · BUY / SELL / HOLD signals")
+    # Fill header now that we know the selected stock
+    with _header_placeholder:
+        page_header(selected_display, "Real-time technical analysis · BUY / SELL / HOLD signals")
 
-        with st.spinner(f"Fetching {ticker} ({interval}, {period})…"):
-            try:
-                df = load_data(ticker, interval, period)
-                sig = generate_signal(df)
-            except Exception as e:
-                st.error(f"Error loading data: {e}")
-                st.stop()
+    with st.spinner(f"Fetching {ticker} ({interval}, {period})…"):
+        try:
+            df = load_data(ticker, interval, period)
+            sig = generate_signal(df)
+        except Exception as e:
+            st.error(f"Error loading data: {e}")
+            st.stop()
 
-        support = df.attrs.get("support")
-        resistance = df.attrs.get("resistance")
+    support = df.attrs.get("support")
+    resistance = df.attrs.get("resistance")
 
-        # ── Pre-load fundamentals + ML ─────────────────────────────────────────
-        with st.spinner("Analysing…"):
-            fund_data   = load_fundamentals(ticker)
-            fund_result = score_fundamentals(fund_data, current_price=sig["last_price"])
-            ml_result   = load_prediction(ticker, "2y")
+    # ── Pre-load fundamentals + ML ─────────────────────────────────────────
+    with st.spinner("Analysing…"):
+        fund_data   = load_fundamentals(ticker)
+        fund_result = score_fundamentals(fund_data, current_price=sig["last_price"])
+        ml_result   = load_prediction(ticker, "2y")
 
-        # ── Derive per-source signals ──────────────────────────────────────────
-        # Technical
-        tech_signal = sig["signal"]
-        tech_conf   = sig["confidence"]
+    # ── Derive per-source signals ──────────────────────────────────────────
+    tech_signal = sig["signal"]
+    tech_conf   = sig["confidence"]
 
-        # Fundamentals → BUY / HOLD / SELL
-        if fund_result["score"] >= 60:
-            fund_signal, fund_conf = "BUY",  fund_result["score"]
-        elif fund_result["score"] < 40:
-            fund_signal, fund_conf = "SELL", 100 - fund_result["score"]
-        else:
-            fund_signal, fund_conf = "HOLD", fund_result["score"]
-
-        # ML
-        if ml_result.get("error"):
-            ml_signal, ml_conf = "HOLD", 50
-        else:
-            ml_signal = "BUY" if ml_result["direction"] == "UP" else "SELL"
-            ml_conf   = int(ml_result["probability"] * 100)
-
-        def _signal_card(col, icon, label, signal, conf, subtitle):
-            color = "#00C851" if signal == "BUY" else ("#ff4444" if signal == "SELL" else "#ffbb33")
-            col.markdown(
-                f"""
-                <div style="background:{color}14; border:2px solid {color}88;
-                            border-radius:12px; padding:14px 18px;
-                            min-height:120px; box-sizing:border-box;">
-                  <div style="font-size:0.75em; color:#aaa; margin-bottom:2px;">{icon} {label}</div>
-                  <div style="font-size:1.9em; font-weight:800; color:{color}; line-height:1.1;">{signal}</div>
-                  <div style="font-size:0.82em; color:{color}; opacity:0.85; margin-top:2px;">{subtitle}</div>
-                  <div style="background:rgba(255,255,255,0.08); border-radius:6px; height:6px;
-                              overflow:hidden; margin-top:8px;">
-                    <div style="width:{conf}%; background:{color}; height:100%; border-radius:6px;"></div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        # ── Unified (combined) signal via majority vote ────────────────────────
-        _vote_counts = {"BUY": 0, "SELL": 0, "HOLD": 0}
-        for _s in [tech_signal, fund_signal, ml_signal]:
-            _vote_counts[_s] += 1
-        unified_signal = max(_vote_counts, key=_vote_counts.get)
-        unified_conf   = (tech_conf + fund_conf + ml_conf) // 3
-
-        tab_tech, tab_fund, tab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
-
-        _zoom_cfg = {"scrollZoom": True, "displayModeBar": True, "plotGlPixelRatio": 1}
-        with tab_tech:
-            # ── Technical signal card + Unified signal card + price metrics ───
-            c_tech, c_unified, c_price, c_sl, c_tgt = st.columns([1.5, 1.5, 1, 1, 1])
-            _signal_card(c_tech,    "📊", "Technical Signal",   tech_signal,    tech_conf,
-                         f"Confidence: {tech_conf}%")
-            _signal_card(c_unified, "🔮", "Combined Signal",    unified_signal, unified_conf,
-                         f"Tech + Fund + ML · avg {unified_conf}%")
-            c_price.metric("Last Price", f"₹{sig['last_price']:,.2f}")
-            c_sl.metric("Stop Loss",     f"₹{sig['stop_loss']:,.2f}")
-            c_tgt.metric("Target",       f"₹{sig['target']:,.2f}")
-            st.divider()
-            st.plotly_chart(build_price_chart(df, support, resistance, interval=interval), width='stretch', config=_zoom_cfg, key="chart_price")
-            col_rsi, col_macd = st.columns(2)
-            with col_rsi:
-                st.plotly_chart(build_rsi_chart(df), width='stretch', config=_zoom_cfg, key="chart_rsi")
-            with col_macd:
-                st.plotly_chart(build_macd_chart(df), width='stretch', config=_zoom_cfg, key="chart_macd")
-            st.plotly_chart(build_volume_obv_chart(df), width='stretch', config=_zoom_cfg, key="chart_volume")
-            st.subheader("Indicator Breakdown")
-            render_indicator_table(sig["components"])
-            with st.expander("View raw data"):
-                st.dataframe(df.tail(50), width="stretch")
-
-        with tab_fund:
-            # ── Fundamentals signal card ───────────────────────────────────────
-            c_fund, _ = st.columns([2, 3])
-            _signal_card(c_fund, "📋", "Fundamentals Signal", fund_signal, fund_conf,
-                         f"{fund_result['grade']} · Score {fund_result['score']}/100")
-            st.divider()
-            render_fundamentals(ticker, sig["last_price"], preloaded_data=fund_data, preloaded_result=fund_result)
-
-        with tab_ml:
-            # ── ML signal card ─────────────────────────────────────────────────
-            c_ml, _ = st.columns([2, 3])
-            _signal_card(c_ml, "🤖", "ML Prediction Signal", ml_signal, ml_conf,
-                         f"Model confidence: {ml_conf}%" if not ml_result.get("error") else "Unavailable")
-            st.divider()
-            render_ml_prediction(df, ticker, preloaded_result=ml_result)
-
+    if fund_result["score"] >= 60:
+        fund_signal, fund_conf = "BUY",  fund_result["score"]
+    elif fund_result["score"] < 40:
+        fund_signal, fund_conf = "SELL", 100 - fund_result["score"]
     else:
-        with _header_placeholder:
-            page_header("NSE / BSE Trading Dashboard", "Real-time technical analysis · BUY / SELL / HOLD signals")
+        fund_signal, fund_conf = "HOLD", fund_result["score"]
 
-    # Index Options section now lives in index_options.py (reached via st.switch_page above)
+    if ml_result.get("error"):
+        ml_signal, ml_conf = "HOLD", 50
+    else:
+        ml_signal = "BUY" if ml_result["direction"] == "UP" else "SELL"
+        ml_conf   = int(ml_result["probability"] * 100)
+
+    def _signal_card(col, icon, label, signal, conf, subtitle):
+        color = "#00C851" if signal == "BUY" else ("#ff4444" if signal == "SELL" else "#ffbb33")
+        col.markdown(
+            f"""
+            <div style="background:{color}14; border:2px solid {color}88;
+                        border-radius:12px; padding:14px 18px;
+                        min-height:120px; box-sizing:border-box;">
+              <div style="font-size:0.75em; color:#aaa; margin-bottom:2px;">{icon} {label}</div>
+              <div style="font-size:1.9em; font-weight:800; color:{color}; line-height:1.1;">{signal}</div>
+              <div style="font-size:0.82em; color:{color}; opacity:0.85; margin-top:2px;">{subtitle}</div>
+              <div style="background:rgba(255,255,255,0.08); border-radius:6px; height:6px;
+                          overflow:hidden; margin-top:8px;">
+                <div style="width:{conf}%; background:{color}; height:100%; border-radius:6px;"></div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # ── Unified (combined) signal via majority vote ────────────────────────
+    _vote_counts = {"BUY": 0, "SELL": 0, "HOLD": 0}
+    for _s in [tech_signal, fund_signal, ml_signal]:
+        _vote_counts[_s] += 1
+    unified_signal = max(_vote_counts, key=_vote_counts.get)
+    unified_conf   = (tech_conf + fund_conf + ml_conf) // 3
+
+    tab_tech, tab_fund, tab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
+
+    _zoom_cfg = {"scrollZoom": True, "displayModeBar": True, "plotGlPixelRatio": 1}
+    with tab_tech:
+        c_tech, c_unified, c_price, c_sl, c_tgt = st.columns([1.5, 1.5, 1, 1, 1])
+        _signal_card(c_tech,    "📊", "Technical Signal",   tech_signal,    tech_conf,
+                     f"Confidence: {tech_conf}%")
+        _signal_card(c_unified, "🔮", "Combined Signal",    unified_signal, unified_conf,
+                     f"Tech + Fund + ML · avg {unified_conf}%")
+        c_price.metric("Last Price", f"₹{sig['last_price']:,.2f}")
+        c_sl.metric("Stop Loss",     f"₹{sig['stop_loss']:,.2f}")
+        c_tgt.metric("Target",       f"₹{sig['target']:,.2f}")
+        st.divider()
+        st.plotly_chart(build_price_chart(df, support, resistance, interval=interval), width='stretch', config=_zoom_cfg, key="chart_price")
+        col_rsi, col_macd = st.columns(2)
+        with col_rsi:
+            st.plotly_chart(build_rsi_chart(df), width='stretch', config=_zoom_cfg, key="chart_rsi")
+        with col_macd:
+            st.plotly_chart(build_macd_chart(df), width='stretch', config=_zoom_cfg, key="chart_macd")
+        st.plotly_chart(build_volume_obv_chart(df), width='stretch', config=_zoom_cfg, key="chart_volume")
+        st.subheader("Indicator Breakdown")
+        render_indicator_table(sig["components"])
+        with st.expander("View raw data"):
+            st.dataframe(df.tail(50), width="stretch")
+
+    with tab_fund:
+        c_fund, _ = st.columns([2, 3])
+        _signal_card(c_fund, "📋", "Fundamentals Signal", fund_signal, fund_conf,
+                     f"{fund_result['grade']} · Score {fund_result['score']}/100")
+        st.divider()
+        render_fundamentals(ticker, sig["last_price"], preloaded_data=fund_data, preloaded_result=fund_result)
+
+    with tab_ml:
+        c_ml, _ = st.columns([2, 3])
+        _signal_card(c_ml, "🤖", "ML Prediction Signal", ml_signal, ml_conf,
+                     f"Model confidence: {ml_conf}%" if not ml_result.get("error") else "Unavailable")
+        st.divider()
+        render_ml_prediction(df, ticker, preloaded_result=ml_result)
 
 
 if __name__ == "__main__":

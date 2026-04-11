@@ -6,7 +6,7 @@ and ML signals, including scoring formulas and backtest approach.
 import streamlit as st
 import sys
 sys.path.insert(0, ".")
-from tools.theme import inject_css, page_header
+from tools.theme import inject_css, page_header, render_nav
 
 st.set_page_config(
     page_title="About — NSE Trading Dashboard",
@@ -15,46 +15,7 @@ st.set_page_config(
 )
 inject_css()
 
-# ── Nav (mirrors dashboard.py) ─────────────────────────────────────────────────
-st.markdown("""
-<style>
-div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] {
-    gap: 6px;
-}
-div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 10px;
-    padding: 9px 28px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 0.97rem;
-    color: rgba(255,255,255,0.55);
-}
-div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label:has(input:checked) {
-    background: rgba(0,212,160,0.13) !important;
-    border-color: rgba(0,212,160,0.55) !important;
-    color: #00d4a0 !important;
-}
-div[data-testid="stRadio"]:has(input[value="📈 Equities"]) div[role="radiogroup"] label > div:first-child {
-    display: none;
-}
-</style>
-""", unsafe_allow_html=True)
-
-section = st.radio(
-    "nav",
-    ["📈 Equities", "🎯 Index Options", "ℹ️ About"],
-    horizontal=True,
-    label_visibility="collapsed",
-    key="top_nav",
-    index=2,
-)
-if section == "📈 Equities":
-    st.switch_page("dashboard.py")
-if section == "🎯 Index Options":
-    st.switch_page("pages/index_options.py")
-
+render_nav("about")
 st.divider()
 page_header("How It Works", "Methodology behind every signal, score, and prediction")
 
@@ -360,15 +321,3 @@ This is a simple ensemble. It is not weighted — each source has equal say.
 You should always review the individual signals for context before acting.
 """)
 
-st.divider()
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Disclaimer
-# ══════════════════════════════════════════════════════════════════════════════
-st.warning("""
-**Disclaimer:** This dashboard is for **educational and informational purposes only**.
-Signals and predictions are not financial advice. Trading equities and derivatives
-involves substantial risk of loss. Scoring weights, SL/target percentages, and ML
-features have not been walk-forward validated across a broad universe of stocks.
-Always consult a registered financial advisor before making investment decisions.
-""")
