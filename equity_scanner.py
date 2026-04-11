@@ -477,7 +477,7 @@ def render_ml_prediction_eq(ticker: str) -> None:
         xaxis_title="Importance", yaxis=dict(autorange="reversed"),
         margin=dict(l=10, r=60, t=20, b=30),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.caption(
         f"Model: Random Forest (100 trees) · Trained on {result['train_samples']} days · "
@@ -561,7 +561,7 @@ def main():
                         for m in equities[:15]
                     }
                     chosen_sym = st.selectbox("Select stock", list(options.keys()))
-                    if st.button("Analyse →", use_container_width=True):
+                    if st.button("Analyse →", width="stretch"):
                         st.session_state["custom_ticker"] = chosen_sym + ".NS"
                         st.session_state["custom_name"]   = chosen_sym
                 elif matches:
@@ -572,7 +572,7 @@ def main():
                 st.caption(f"Search unavailable: rate limit. Try after a moment.")
 
         st.divider()
-        refresh = st.button("🔄 Refresh Data", use_container_width=True)
+        refresh = st.button("🔄 Refresh Data", width="stretch")
         if refresh:
             st.cache_data.clear()
             st.session_state.pop("custom_ticker", None)
@@ -696,7 +696,7 @@ def main():
 
         st.dataframe(
             df_table[display_cols],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "Confidence": st.column_config.ProgressColumn(
@@ -761,9 +761,9 @@ def main():
                             "Signal":    v["signal"],
                             "Points":    f"{pts:+d}",
                         })
-                    st.dataframe(pd.DataFrame(comp_rows), hide_index=True, use_container_width=True)
+                    st.dataframe(pd.DataFrame(comp_rows), hide_index=True, width="stretch")
                 fig = build_stock_chart(df, sig, selected_name)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             with tab_fund:
                 render_fundamentals_eq(sig["ticker"], price)
@@ -807,7 +807,7 @@ def main():
             ctab_tech, ctab_fund, ctab_ml = st.tabs(["📊 Technical", "📋 Fundamentals", "🤖 ML Prediction"])
             with ctab_tech:
                 fig_c = build_stock_chart(df_c, custom_sig, custom_name)
-                st.plotly_chart(fig_c, use_container_width=True)
+                st.plotly_chart(fig_c, width="stretch")
             with ctab_fund:
                 render_fundamentals_eq(custom_ticker, price)
             with ctab_ml:
@@ -828,7 +828,7 @@ def main():
                 "Target":     f"₹{r['target']:,.2f}" if "target" in r else "—",
             })
         if summary_rows:
-            st.dataframe(pd.DataFrame(summary_rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(summary_rows), hide_index=True, width="stretch")
 
     st.divider()
     st.caption(

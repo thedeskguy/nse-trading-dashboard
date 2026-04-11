@@ -422,7 +422,7 @@ def render_rec_card(rec_data: dict, style: str, symbol: str):
 
     gauge = build_premium_chart(rec_data, style)
     if gauge:
-        st.plotly_chart(gauge, use_container_width=True)
+        st.plotly_chart(gauge, width="stretch")
 
     st.caption(
         f"**How to read:** Entry = buy at ₹{r['premium']}. "
@@ -548,7 +548,7 @@ def render_index_tab(label: str, symbol: str):
 
     if price_df is not None and not price_df.empty:
         fig_price = build_price_chart(price_df, symbol)
-        st.plotly_chart(fig_price, use_container_width=True)
+        st.plotly_chart(fig_price, width="stretch")
     else:
         st.warning(f"Could not load price data for {label}.")
 
@@ -643,7 +643,7 @@ def render_index_tab(label: str, symbol: str):
         recommended_type=option_type,
     )
     if prem_fig:
-        st.plotly_chart(prem_fig, use_container_width=True)
+        st.plotly_chart(prem_fig, width="stretch")
         st.caption(
             "Teal = CALL premium · Red = PUT premium · Both at ATM strike. "
             "⭐ marks the recommended trade expiry."
@@ -659,7 +659,7 @@ def render_index_tab(label: str, symbol: str):
     chain_spot = chain_data.get("underlying_value", spot)
     oi_fig = build_oi_chart(chain_data, chain_spot, symbol, selected_expiry)
     if oi_fig:
-        st.plotly_chart(oi_fig, use_container_width=True)
+        st.plotly_chart(oi_fig, width="stretch")
         st.caption(
             "Green bars = CALL open interest (bearish writers). "
             "Red bars = PUT open interest (bullish writers). "
@@ -681,7 +681,7 @@ def render_index_tab(label: str, symbol: str):
                  "Signal": v["signal"], "Points": f"{v['points']:+d}"}
                 for name, v in components.items()
             ]
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
         else:
             st.info("No component data.")
 
@@ -724,7 +724,7 @@ def render_index_tab(label: str, symbol: str):
                 st.dataframe(
                     display.style.apply(highlight_atm, axis=1),
                     hide_index=True,
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.info(f"No chain data for {chain_expiry}.")
@@ -756,10 +756,10 @@ def main():
         else:
             st.caption("Auto-refresh is off.")
 
-        if st.button("🔄 Refresh Now", use_container_width=True):
+        if st.button("🔄 Refresh Now", width="stretch"):
             st.cache_data.clear()
             st.rerun()
-        if st.button("🔑 Reset Angel One Session", use_container_width=True):
+        if st.button("🔑 Reset Angel One Session", width="stretch"):
             from tools.angel_auth import reset_session
             reset_session()
             st.cache_data.clear()

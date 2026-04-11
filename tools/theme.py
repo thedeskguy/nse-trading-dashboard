@@ -1,6 +1,7 @@
 """
 Shared visual theme for all Streamlit dashboards.
 Call inject_css() once at the top of main() in each app, right after set_page_config.
+Exports: inject_css, page_header, signal_badge, render_nav
 """
 import streamlit as st
 
