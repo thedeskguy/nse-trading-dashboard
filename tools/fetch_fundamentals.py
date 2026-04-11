@@ -41,26 +41,32 @@ def _table_rows(html: str, section_id: str) -> dict[str, list[float | None]]:
     Parse an HTML table inside a section with the given id.
     Returns {row_label: [newest_val, prev_val, ...]} — newest first.
     Screener tables have years left→right (oldest→newest), so we reverse.
+    Works with or without explicit <tbody> tags (browsers inject them;
+    raw server HTML sometimes omits them).
     """
     idx = html.find(f'id="{section_id}"')
     if idx < 0:
         return {}
+    # Take a generous chunk; stop at the next top-level section
     chunk = html[idx: idx + 40000]
 
     rows: dict[str, list[float | None]] = {}
-    tbody_m = re.search(r"<tbody>([\s\S]*?)</tbody>", chunk)
-    if not tbody_m:
-        return {}
 
-    for tr in re.finditer(r"<tr[^>]*>([\s\S]*?)</tr>", tbody_m.group(1)):
+    # Try to find rows inside <tbody> first, fall back to any <tr> inside chunk
+    tbody_m = re.search(r"<tbody>([\s\S]*?)</tbody>", chunk)
+    search_in = tbody_m.group(1) if tbody_m else chunk
+
+    for tr in re.finditer(r"<tr[^>]*>([\s\S]*?)</tr>", search_in):
         cells = re.findall(r"<t[dh][^>]*>([\s\S]*?)</t[dh]>", tr.group(1))
         if len(cells) < 2:
             continue
         label = _clean_label(cells[0])
-        if not label:
-            continue
+        if not label or label.startswith("Mar") or label.startswith("Sep"):
+            continue   # skip header rows
         values = [_num(c) for c in cells[1:]]
-        rows[label] = list(reversed(values))   # newest first
+        # Only keep rows that have at least one numeric value
+        if any(v is not None for v in values):
+            rows[label] = list(reversed(values))   # newest first
 
     return rows
 
@@ -115,37 +121,43 @@ def _fetch_screener(ticker: str) -> dict:
     # ── Top-ratios panel ──────────────────────────────────────────────────────
     top_m = re.search(r'id="top-ratios">([\s\S]*?)</ul>', html)
     if top_m:
-        for li in re.finditer(r'<li[^>]*class="[^"]*flex[^"]*"[^>]*>([\s\S]*?)</li>', top_m.group(1)):
+        # Collect ALL .number values per li (High/Low has two)
+        for li in re.finditer(r'<li[^>]*>([\s\S]*?)</li>', top_m.group(1)):
             name_m = re.search(r'class="name"[^>]*>([\s\S]*?)</span>', li.group(1))
-            num_m  = re.search(r'class="number"[^>]*>([\s\S]*?)</span>', li.group(1))
-            if not (name_m and num_m):
+            if not name_m:
                 continue
             name = _strip(name_m.group(1))
-            val  = _num(num_m.group(1))
+            all_nums = [_num(s) for s in re.findall(
+                r'class="number"[^>]*>([\s\S]*?)</span>', li.group(1)
+            )]
+            all_nums = [n for n in all_nums if n is not None]
+            if not all_nums:
+                continue
+            val = all_nums[0]
+
             if name == "Stock P/E":
                 result["pe_trailing"] = val
             elif name == "Book Value":
                 result["book_value"] = val
             elif name == "ROE":
-                # screener shows as % (e.g. 8.40 → 8.40%)
-                result["roe"] = val / 100.0 if val is not None else None
+                # screener shows as % string (e.g. "8.40" = 8.40%)
+                result["roe"] = val / 100.0
             elif name == "ROCE":
-                result["roce"] = val / 100.0 if val is not None else None
+                result["roce"] = val / 100.0
             elif name == "Dividend Yield":
-                # screener shows as % (e.g. 0.41 → 0.41%)
-                result["dividend_yield"] = val / 100.0 if val is not None else None
+                # screener shows "0.41" meaning 0.41% → store as fraction 0.0041
+                # guard: if val > 10 it's already in %, e.g. "41" → /100/100 not needed
+                result["dividend_yield"] = val / 100.0
             elif name == "Market Cap":
-                # screener in Cr → ₹ (1 Cr = 1e7)
-                result["market_cap"] = val * 1e7 if val is not None else None
+                # screener in Cr; "18,27,154" → 1827154 Cr → * 1e7 = ₹
+                result["market_cap"] = val * 1e7
             elif name == "Face Value":
                 result["face_value"] = val
             elif name == "High / Low":
-                # value contains two .number spans; grab both
-                nums = [_num(s) for s in re.findall(r'class="number"[^>]*>([\s\S]*?)</span>', li.group(1))]
-                nums = [n for n in nums if n is not None]
-                if len(nums) >= 2:
-                    result["high_52w"] = max(nums)
-                    result["low_52w"]  = min(nums)
+                # Two .number spans: high and low
+                if len(all_nums) >= 2:
+                    result["high_52w"] = max(all_nums)
+                    result["low_52w"]  = min(all_nums)
 
     # Compute Price/Book if we have both book value and market cap
     # (we need current price; skip here — caller can compute)
