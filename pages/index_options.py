@@ -744,6 +744,8 @@ def main():
     with st.sidebar:
         if st.button("← Dashboard", use_container_width=True):
             st.switch_page("dashboard.py")
+        if st.button("ℹ️ About", use_container_width=True):
+            st.switch_page("pages/about.py")
 
         st.divider()
         st.subheader("⚡ Live Refresh")

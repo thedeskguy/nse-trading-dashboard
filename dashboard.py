@@ -501,7 +501,6 @@ def render_fundamentals(ticker: str, last_price: float, preloaded_data=None, pre
     _show_metrics([
         ("Trailing PE",  _fmt(data.get("pe_trailing"), "x"),  {}),
         ("Forward PE",   _fmt(data.get("pe_forward"),  "x"),  {}),
-        ("Industry PE",  _fmt(data.get("industry_pe"), "x"),  {}),
         ("Price / Book", _fmt(data.get("pb_ratio"),    "x"),  {}),
         ("Book Value",   _fmt(data.get("book_value"),  prefix="₹"), {}),
         ("PEG Ratio",    _fmt(data.get("peg_ratio"),   "x"),  {}),
@@ -522,13 +521,13 @@ def render_fundamentals(ticker: str, last_price: float, preloaded_data=None, pre
     # ── Growth & Health ───────────────────────────────────────────────────────
     st.markdown("#### Growth & Financial Health")
     _show_metrics([
-        ("Revenue Growth",  _pct(data["revenue_growth"]),  {}),
-        ("Earnings Growth", _pct(data["earnings_growth"]), {}),
-        ("Debt / Equity",   _fmt(data["debt_to_equity"]),  {}),
-        ("Current Ratio",   _fmt(data["current_ratio"]),   {}),
-        ("Quick Ratio",     _fmt(data["quick_ratio"]),     {}),
-        ("Dividend Yield",  _pct(data["dividend_yield"]),  {}),
-        ("Payout Ratio",    _pct(data["payout_ratio"]),    {}),
+        ("Revenue Growth",  _pct(data.get("revenue_growth")),  {}),
+        ("Earnings Growth", _pct(data.get("earnings_growth")), {}),
+        ("Debt / Equity",   _fmt(data.get("debt_to_equity")),  {}),
+        ("Current Ratio",   _fmt(data.get("current_ratio")),   {}),
+        ("Quick Ratio",     _fmt(data.get("quick_ratio")),     {}),
+        ("Dividend Yield",  _pct(data.get("dividend_yield")),  {}),
+        ("Payout Ratio",    _pct(data.get("payout_ratio")),    {}),
     ])
 
     st.divider()
@@ -679,7 +678,7 @@ def main():
 
     section = st.radio(
         "nav",
-        ["📈 Equities", "🎯 Index Options"],
+        ["📈 Equities", "🎯 Index Options", "ℹ️ About"],
         horizontal=True,
         label_visibility="collapsed",
         key="top_nav",
@@ -687,6 +686,8 @@ def main():
 
     if section == "🎯 Index Options":
         st.switch_page("pages/index_options.py")
+    if section == "ℹ️ About":
+        st.switch_page("pages/about.py")
     st.divider()
 
     _header_placeholder = st.empty()
@@ -762,7 +763,7 @@ def main():
             else:
                 ticker = "RELIANCE.NS"
                 selected_display = "Reliance Industries Limited"
-            interval = st.selectbox("Interval", ["5m", "15m", "30m", "1h", "1d", "1wk", "1mo"], index=4)
+            interval = st.selectbox("Interval", ["5m", "15m", "30m", "1h", "1d", "1wk"], index=4)
             valid_periods = VALID_COMBOS[interval]
             period = st.selectbox("Period", valid_periods, index=min(2, len(valid_periods) - 1))
         else:

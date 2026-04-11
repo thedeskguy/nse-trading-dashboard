@@ -14,11 +14,10 @@ import pandas as pd
 # ── Screener.in scraper ───────────────────────────────────────────────────────
 def _fetch_screener(ticker: str) -> dict:
     """
-    Scrape key ratios from screener.in for NSE-listed stocks.
-    Returns a dict with fields ready to supplement yfinance data.
-    Fields returned (all None on failure):
-      pe_trailing, roe, roce, dividend_yield, market_cap,
-      book_value, industry_pe, debt_to_equity
+    Scrape key ratios from screener.in top-ratios panel for NSE stocks.
+    Parses each <li> by extracting the .name and .number spans directly.
+    Available fields: pe_trailing, roe, roce, dividend_yield,
+                      market_cap, book_value, debt_to_equity, face_value.
     """
     import requests as _req
 
@@ -41,60 +40,59 @@ def _fetch_screener(ticker: str) -> dict:
 
     html = resp.text
 
+    def _strip_tags(s: str) -> str:
+        return re.sub(r"<[^>]+>", "", s).strip()
+
     def _parse_num(s: str):
-        """Strip commas, units (Cr., %, etc.) and return float or None."""
-        s = re.sub(r"[,₹\s]", "", s.strip())
-        s = re.sub(r"(Cr\.?|Lakh|B|M|%)$", "", s, flags=re.IGNORECASE)
+        """Remove Indian-format commas, currency symbols, units; return float."""
+        s = re.sub(r"[,₹\s]", "", s)
+        s = re.sub(r"(Cr\.?|Lakh|%)$", "", s, flags=re.IGNORECASE)
         try:
             return float(s)
         except ValueError:
             return None
 
-    # Extract all <span class="name">...</span> ... <span class="number">...</span> pairs
-    pairs = re.findall(
-        r'<span[^>]*\bname\b[^>]*>\s*(.*?)\s*</span>.*?'
-        r'<span[^>]*\bnumber\b[^>]*>\s*(.*?)\s*</span>',
-        html, re.DOTALL | re.IGNORECASE,
-    )
-
-    raw: dict[str, float | None] = {}
-    for name, val in pairs:
-        name_clean = re.sub(r"<[^>]+>", "", name).strip()  # strip inner tags
-        raw[name_clean] = _parse_num(re.sub(r"<[^>]+>", "", val))
+    # Parse each <li> inside #top-ratios
+    raw: dict = {}
+    li_blocks = re.findall(r'<li[^>]*class="[^"]*flex[^"]*"[^>]*>(.*?)</li>', html, re.DOTALL)
+    for block in li_blocks:
+        name_m  = re.search(r'<span[^>]*\bname\b[^>]*>(.*?)</span>', block, re.DOTALL)
+        num_m   = re.search(r'<span[^>]*\bnumber\b[^>]*>(.*?)</span>', block, re.DOTALL)
+        if name_m and num_m:
+            name = _strip_tags(name_m.group(1))
+            val  = _parse_num(_strip_tags(num_m.group(1)))
+            if name and val is not None:
+                raw[name] = val
 
     result: dict = {}
 
-    # PE
-    if raw.get("Stock P/E") is not None:
+    # PE ratio (not a %)
+    if "Stock P/E" in raw:
         result["pe_trailing"] = raw["Stock P/E"]
 
-    # Industry PE
-    if raw.get("Industry P/E") is not None:
-        result["industry_pe"] = raw["Industry P/E"]
-
-    # ROE — screener shows as %, convert to fraction for consistency with yfinance
-    if raw.get("ROE") is not None:
+    # ROE — screener shows as %, divide by 100 for yfinance-compatible fraction
+    if "ROE" in raw:
         result["roe"] = raw["ROE"] / 100.0
 
-    # ROCE — not in yfinance at all
-    if raw.get("ROCE") is not None:
+    # ROCE — not available in yfinance at all
+    if "ROCE" in raw:
         result["roce"] = raw["ROCE"] / 100.0
 
-    # Dividend yield — screener shows as %, convert to fraction
-    if raw.get("Dividend Yield") is not None:
+    # Dividend yield — screener shows as % (e.g. "0.41")
+    if "Dividend Yield" in raw:
         result["dividend_yield"] = raw["Dividend Yield"] / 100.0
 
-    # Market cap — screener in Cr, convert to absolute (1 Cr = 1e7)
-    if raw.get("Market Cap") is not None:
+    # Market cap — screener in Cr (1 Cr = 1e7 ₹)
+    if "Market Cap" in raw:
         result["market_cap"] = raw["Market Cap"] * 1e7
 
-    # Book value (₹ per share)
-    if raw.get("Book Value") is not None:
+    # Book value ₹/share
+    if "Book Value" in raw:
         result["book_value"] = raw["Book Value"]
 
-    # Debt to equity — screener shows direct ratio (not %)
-    if raw.get("Debt to equity") is not None:
-        result["debt_to_equity"] = raw["Debt to equity"] * 100  # match yfinance scale
+    # Debt to equity — screener shows direct ratio; yfinance uses %, so *100
+    if "Debt to equity" in raw:
+        result["debt_to_equity"] = raw["Debt to equity"] * 100
 
     return result
 
@@ -178,7 +176,6 @@ def fetch_fundamentals(ticker: str) -> dict:
         "market_cap":      _get("marketCap"),
         "beta":            _get("beta"),
         "week52_change":   _get("52WeekChange"),
-        "industry_pe":     None,  # from screener.in
         "book_value":      None,  # from screener.in (₹/share)
         # Identity
         "name":            _get("shortName", cast=str),
@@ -195,9 +192,12 @@ def fetch_fundamentals(ticker: str) -> dict:
     try:
         screener = _fetch_screener(ticker)
         for field in ("pe_trailing", "roe", "roce", "dividend_yield",
-                      "market_cap", "book_value", "industry_pe", "debt_to_equity"):
+                      "market_cap", "book_value", "debt_to_equity"):
             if result.get(field) is None and screener.get(field) is not None:
                 result[field] = screener[field]
+        # ROCE is exclusive to screener.in — always take it if available
+        if screener.get("roce") is not None:
+            result["roce"] = screener["roce"]
     except Exception:
         pass
 
