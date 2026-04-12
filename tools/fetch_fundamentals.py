@@ -83,7 +83,13 @@ def _fetch_screener(ticker: str) -> dict:
       net_profit, net_profit_margin, profit_growth,
       debt, equity, debt_to_equity, interest_coverage
     """
-    import requests as _req
+    # curl_cffi impersonates Chrome's TLS fingerprint — bypasses Cloudflare on cloud IPs
+    try:
+        from curl_cffi import requests as _req
+        _impersonate = "chrome"
+    except ImportError:
+        import requests as _req
+        _impersonate = None
 
     symbol = ticker.replace(".NS", "").replace(".BO", "").upper()
 
@@ -99,14 +105,19 @@ def _fetch_screener(ticker: str) -> dict:
 
     def _get(url: str) -> str | None:
         try:
-            r = _req.get(url, timeout=12, headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/122.0.0.0 Safari/537.36"
-                ),
-                "Accept-Language": "en-US,en;q=0.9",
-            })
+            kwargs = {"timeout": 20}
+            if _impersonate:
+                kwargs["impersonate"] = _impersonate
+            else:
+                kwargs["headers"] = {
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/123.0.0.0 Safari/537.36"
+                    ),
+                    "Accept-Language": "en-US,en;q=0.9",
+                }
+            r = _req.get(url, **kwargs)
             return r.text if r.status_code == 200 else None
         except Exception:
             return None
