@@ -33,6 +33,10 @@ def inject_css() -> None:
         /* ── Hide Streamlit chrome ───────────────────────────── */
         #MainMenu, footer { visibility: hidden; }
         [data-testid="stHeader"] { background: transparent; }
+        /* Hide auto-generated Streamlit sidebar page nav */
+        [data-testid="stSidebarNav"] { display: none !important; }
+        /* Collapse the zero-height JS injection iframe so it leaves no gap */
+        [data-testid="stIFrame"] { min-height: 0 !important; }
 
         /* ── Main content area ───────────────────────────────── */
         .main .block-container {
@@ -87,28 +91,43 @@ def inject_css() -> None:
             font-weight: 500 !important;
         }
 
-        /* ── Refresh button ──────────────────────────────────── */
+        /* ── Buttons ─────────────────────────────────────────── */
+        /* Secondary (default) = dark glass pill — inactive nav + generic actions */
         .stButton > button {
-            background: rgba(0,212,160,0.1) !important;
-            color: #00d4a0 !important;
-            font-weight: 600 !important;
-            border: 1px solid rgba(0,212,160,0.3) !important;
-            border-radius: 10px !important;
-            padding: 8px 20px !important;
+            background: rgba(255,255,255,0.04) !important;
+            color: rgba(255,255,255,0.52) !important;
+            font-weight: 500 !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            border-radius: 14px !important;
+            padding: 9px 20px !important;
             font-family: 'Inter', sans-serif !important;
-            font-size: 0.85rem !important;
+            font-size: 0.875rem !important;
             letter-spacing: 0.01em;
             transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
         }
         .stButton > button:hover {
-            background: rgba(0,212,160,0.18) !important;
-            border-color: rgba(0,212,160,0.55) !important;
-            box-shadow: 0 4px 14px rgba(0,212,160,0.15) !important;
+            background: rgba(255,255,255,0.08) !important;
+            border-color: rgba(255,255,255,0.2) !important;
+            color: rgba(255,255,255,0.82) !important;
             transform: translateY(-1px) !important;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.28) !important;
         }
         .stButton > button:active {
             transform: translateY(0) !important;
             box-shadow: none !important;
+        }
+        /* Primary = teal — action buttons (Refresh, Reset) + active nav pill */
+        [data-testid="baseButton-primary"] {
+            background: rgba(0,212,160,0.1) !important;
+            color: #00d4a0 !important;
+            font-weight: 600 !important;
+            border: 1px solid rgba(0,212,160,0.32) !important;
+            border-radius: 14px !important;
+        }
+        [data-testid="baseButton-primary"]:hover {
+            background: rgba(0,212,160,0.18) !important;
+            border-color: rgba(0,212,160,0.55) !important;
+            box-shadow: 0 4px 14px rgba(0,212,160,0.15) !important;
         }
 
         /* ── Tabs ────────────────────────────────────────────── */
@@ -262,74 +281,30 @@ def inject_css() -> None:
     )
 
 
-_NAV_CSS = """
-<style>
-.app-nav {
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    margin-bottom: 16px;
-    align-items: center;
-}
-.app-nav a {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 138px;
-    padding: 10px 22px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 14px;
-    text-decoration: none !important;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-weight: 500;
-    font-size: 0.875rem;
-    color: rgba(255,255,255,0.42) !important;
-    letter-spacing: 0.01em;
-    transition: all 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    white-space: nowrap;
-    cursor: pointer;
-}
-.app-nav a:hover {
-    background: rgba(255,255,255,0.07) !important;
-    border-color: rgba(255,255,255,0.15) !important;
-    color: rgba(255,255,255,0.75) !important;
-    transform: translateY(-1px);
-    box-shadow: 0 5px 14px rgba(0,0,0,0.28);
-    text-decoration: none !important;
-}
-.app-nav a.nav-active {
-    background: rgba(0,212,160,0.09) !important;
-    border-color: rgba(0,212,160,0.4) !important;
-    color: #00d4a0 !important;
-    box-shadow: 0 4px 16px rgba(0,212,160,0.12), 0 1px 3px rgba(0,0,0,0.2) !important;
-    pointer-events: none;
-    cursor: default;
-}
-</style>
-"""
-
-
 def render_nav(active: str) -> None:
-    """Render the top navigation bar as three HTML anchor boxes.
+    """Render the top navigation bar using session-state buttons — no page-reload flash.
+
+    Active button uses type='primary' (teal), inactive uses type='secondary' (dark glass).
+    Pure CSS styling — no JavaScript, no data attributes, works instantly on every render.
 
     active: one of 'equities', 'options', 'about'
     """
-    def _cls(key: str) -> str:
-        return 'nav-active' if active == key else ''
+    def _t(key: str) -> str:
+        return "primary" if active == key else "secondary"
 
-    html = (
-        _NAV_CSS
-        + f"""
-<nav class="app-nav">
-  <a href="/" class="{_cls('equities')}">📈 Equities</a>
-  <a href="/index_options" class="{_cls('options')}">🎯 Index Options</a>
-  <a href="/about" class="{_cls('about')}">ℹ️ About</a>
-</nav>
-"""
-    )
-    st.markdown(html, unsafe_allow_html=True)
+    c1, c2, c3, _space = st.columns([1.8, 2.2, 1.4, 4.6])
+    with c1:
+        if st.button("📈 Equities", key="_nav_eq", type=_t("equities"), use_container_width=True):
+            st.session_state["_nav_page"] = "equities"
+            st.rerun()
+    with c2:
+        if st.button("🎯 Index Options", key="_nav_opts", type=_t("options"), use_container_width=True):
+            st.session_state["_nav_page"] = "options"
+            st.rerun()
+    with c3:
+        if st.button("ℹ️ About", key="_nav_ab", type=_t("about"), use_container_width=True):
+            st.session_state["_nav_page"] = "about"
+            st.rerun()
 
 
 def signal_badge(signal: str, confidence: int, subtitle: str = "") -> str:

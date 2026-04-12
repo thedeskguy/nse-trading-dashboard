@@ -18,6 +18,8 @@ from tools.analyze_options import recommend_option
 from tools.theme import inject_css, signal_badge, page_header, render_nav
 from tools.fetch_fundamentals import fetch_fundamentals, score_fundamentals
 from tools.ml_predictor import train_and_predict
+from tools.options_page import render_page as _render_options_page
+from tools.about_page import render_page as _render_about_page
 
 # ── Nifty 50 tickers ──────────────────────────────────────────────────────────
 NIFTY50 = {  # noqa: E501
@@ -654,9 +656,22 @@ def main():
     )
     inject_css()
 
-    # ── Top navbar ─────────────────────────────────────────────────────────────
-    render_nav("equities")
+    # ── Single-page routing via session state (no browser navigation = no flash) ──
+    if "_nav_page" not in st.session_state:
+        st.session_state["_nav_page"] = "equities"
+
+    render_nav(st.session_state["_nav_page"])
     st.divider()
+
+    # Route to options or about — return early so equities code doesn't run
+    if st.session_state["_nav_page"] == "options":
+        _render_options_page()
+        return
+    if st.session_state["_nav_page"] == "about":
+        _render_about_page()
+        return
+
+    # ── Equities page below ────────────────────────────────────────────────────
 
     _header_placeholder = st.empty()
 
@@ -726,7 +741,7 @@ def main():
         valid_periods = VALID_COMBOS[interval]
         period = st.selectbox("Period", valid_periods, index=min(2, len(valid_periods) - 1))
 
-        refresh = st.button("🔄 Refresh")
+        refresh = st.button("🔄 Refresh", type="primary")
         if refresh:
             st.cache_data.clear()
 
