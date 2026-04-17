@@ -65,10 +65,12 @@
 
 ---
 
-## Phase 8: Scanner Page `[ ]`
-- [ ] Nifty 50 batch signal scan
-- [ ] Table of all 50 stocks with signal + confidence
-- [ ] Filter / sort by signal type
+## Phase 8: Scanner Page `[x]` ✅
+- [x] Nifty 50 batch signal scan (GET /api/v1/market/scan, asyncio parallel, 10-min cache)
+- [x] Table of all 50 stocks with signal + confidence bar + day change %
+- [x] Filter by signal type (ALL / BUY / HOLD / SELL with counts)
+- [x] Sortable columns (Company, Price, Day %, Confidence)
+- [x] Click-through to individual stock page
 
 ---
 
