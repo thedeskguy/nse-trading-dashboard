@@ -15,6 +15,6 @@ describe("cn (class merge utility)", () => {
   });
 
   it("handles undefined/null gracefully", () => {
-    expect(cn("a", undefined, null as any, "b")).toBe("a b");
+    expect(cn("a", undefined, null as unknown as string, "b")).toBe("a b");
   });
 });

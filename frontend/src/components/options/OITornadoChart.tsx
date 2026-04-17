@@ -17,6 +17,25 @@ function fmtOI(v: number): string {
   return String(v);
 }
 
+interface TornadoTooltipProps {
+  active?: boolean;
+  payload?: Array<{ dataKey?: string | number; value?: number | string }>;
+  label?: string | number;
+}
+
+function CustomTooltip({ active, payload, label }: TornadoTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const ceOI = Math.abs(Number(payload.find((p) => p.dataKey === "CE")?.value ?? 0));
+  const peOI = Number(payload.find((p) => p.dataKey === "PE")?.value ?? 0);
+  return (
+    <div className="bg-card border border-border rounded-xl px-3 py-2 text-xs space-y-1">
+      <p className="font-semibold">Strike {label}</p>
+      <p className="text-sell">CE OI: {ceOI.toLocaleString("en-IN")}</p>
+      <p className="text-buy">PE OI: {peOI.toLocaleString("en-IN")}</p>
+    </div>
+  );
+}
+
 export function OITornadoChart({ chain, spot, maxStrikes = 20 }: Props) {
   // Pick the N strikes closest to spot
   const sorted = [...chain].sort(
@@ -33,19 +52,6 @@ export function OITornadoChart({ chain, spot, maxStrikes = 20 }: Props) {
   }));
 
   const maxOI = Math.max(...data.flatMap((d) => [Math.abs(d.CE), d.PE]));
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null;
-    const ceOI = Math.abs(payload.find((p: any) => p.dataKey === "CE")?.value ?? 0);
-    const peOI = payload.find((p: any) => p.dataKey === "PE")?.value ?? 0;
-    return (
-      <div className="bg-card border border-border rounded-xl px-3 py-2 text-xs space-y-1">
-        <p className="font-semibold">Strike {label}</p>
-        <p className="text-sell">CE OI: {ceOI.toLocaleString("en-IN")}</p>
-        <p className="text-buy">PE OI: {peOI.toLocaleString("en-IN")}</p>
-      </div>
-    );
-  };
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5">
