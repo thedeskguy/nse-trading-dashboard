@@ -8,3 +8,13 @@ python-dotenv>=1.0.0
 pydantic-settings>=2.0.0
 pandas>=2.0.0
 numpy>=1.26.0
+# Data & ML — used by tools/ which routers import
+yfinance>=0.2.38
+curl_cffi>=0.7.0
+requests
+scikit-learn>=1.4.0
+# Angel One session
+smartapi-python>=1.3.4
+pyotp>=2.9.0
+websocket-client>=1.0.0
+logzero>=1.7.0
