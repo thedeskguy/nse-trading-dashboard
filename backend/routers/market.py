@@ -12,6 +12,59 @@ from services.serializers import df_to_records
 
 router = APIRouter()
 
+NIFTY_50 = [
+    ("ADANIENT.NS",   "Adani Enterprises"),
+    ("ADANIPORTS.NS", "Adani Ports"),
+    ("APOLLOHOSP.NS", "Apollo Hospitals"),
+    ("ASIANPAINT.NS", "Asian Paints"),
+    ("AXISBANK.NS",   "Axis Bank"),
+    ("BAJAJ-AUTO.NS", "Bajaj Auto"),
+    ("BAJFINANCE.NS", "Bajaj Finance"),
+    ("BAJAJFINSV.NS", "Bajaj Finserv"),
+    ("BPCL.NS",       "BPCL"),
+    ("BHARTIARTL.NS", "Bharti Airtel"),
+    ("BRITANNIA.NS",  "Britannia"),
+    ("CIPLA.NS",      "Cipla"),
+    ("COALINDIA.NS",  "Coal India"),
+    ("DIVISLAB.NS",   "Divi's Laboratories"),
+    ("DRREDDY.NS",    "Dr. Reddy's"),
+    ("EICHERMOT.NS",  "Eicher Motors"),
+    ("GRASIM.NS",     "Grasim Industries"),
+    ("HCLTECH.NS",    "HCL Technologies"),
+    ("HDFCBANK.NS",   "HDFC Bank"),
+    ("HDFCLIFE.NS",   "HDFC Life Insurance"),
+    ("HEROMOTOCO.NS", "Hero MotoCorp"),
+    ("HINDALCO.NS",   "Hindalco Industries"),
+    ("HINDUNILVR.NS", "Hindustan Unilever"),
+    ("ICICIBANK.NS",  "ICICI Bank"),
+    ("ITC.NS",        "ITC"),
+    ("INDUSINDBK.NS", "IndusInd Bank"),
+    ("INFY.NS",       "Infosys"),
+    ("JSWSTEEL.NS",   "JSW Steel"),
+    ("KOTAKBANK.NS",  "Kotak Mahindra Bank"),
+    ("LTIM.NS",       "LTIMindtree"),
+    ("LT.NS",         "Larsen & Toubro"),
+    ("M&M.NS",        "Mahindra & Mahindra"),
+    ("MARUTI.NS",     "Maruti Suzuki"),
+    ("NTPC.NS",       "NTPC"),
+    ("NESTLEIND.NS",  "Nestle India"),
+    ("ONGC.NS",       "ONGC"),
+    ("POWERGRID.NS",  "Power Grid Corporation"),
+    ("RELIANCE.NS",   "Reliance Industries"),
+    ("SBILIFE.NS",    "SBI Life Insurance"),
+    ("SHRIRAMFIN.NS", "Shriram Finance"),
+    ("SBIN.NS",       "State Bank of India"),
+    ("SUNPHARMA.NS",  "Sun Pharmaceutical"),
+    ("TCS.NS",        "Tata Consultancy Services"),
+    ("TATACONSUM.NS", "Tata Consumer Products"),
+    ("TATAMOTORS.NS", "Tata Motors"),
+    ("TATASTEEL.NS",  "Tata Steel"),
+    ("TECHM.NS",      "Tech Mahindra"),
+    ("TITAN.NS",      "Titan Company"),
+    ("ULTRACEMCO.NS", "UltraTech Cement"),
+    ("WIPRO.NS",      "Wipro"),
+]
+
 _INDICES = [
     {"key": "NIFTY50",   "ticker": "^NSEI",   "name": "NIFTY 50"},
     {"key": "BANKNIFTY", "ticker": "^NSEBANK", "name": "BANKNIFTY"},
@@ -208,5 +261,52 @@ async def get_signal(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Signal computation failed: {e}")
+
+
+@router.get("/market/scan")
+async def scan_nifty50(user: dict = Depends(verify_supabase_jwt)):
+    """Batch technical signal scan for all Nifty 50 stocks. Cached 10 min."""
+    cache_key = "scan:nifty50"
+
+    async def _do_scan():
+        from tools.fetch_stock_data import fetch_ohlcv
+        from tools.compute_indicators import compute_all
+        from tools.generate_signals import generate_signal
+
+        sem = asyncio.Semaphore(8)
+
+        async def _scan_one(ticker: str, name: str):
+            async with sem:
+                try:
+                    def _compute():
+                        df = fetch_ohlcv(ticker, "1d", "3mo")
+                        change_pct = None
+                        if len(df) >= 2:
+                            prev = float(df["Close"].iloc[-2])
+                            last = float(df["Close"].iloc[-1])
+                            change_pct = round((last - prev) / prev * 100, 2)
+                        df = compute_all(df)
+                        sig = generate_signal(df)
+                        return {
+                            "ticker": ticker,
+                            "name": name,
+                            "signal": sig["signal"],
+                            "confidence": sig["confidence"],
+                            "last_price": sig["last_price"],
+                            "change_pct": change_pct,
+                        }
+                    return await asyncio.to_thread(_compute)
+                except Exception:
+                    return {
+                        "ticker": ticker, "name": name,
+                        "signal": None, "confidence": None,
+                        "last_price": None, "change_pct": None,
+                    }
+
+        tasks = [_scan_one(t, n) for t, n in NIFTY_50]
+        return await asyncio.gather(*tasks)
+
+    results = await cached(cache_key, ttl=600, fn=_do_scan)
+    return {"stocks": list(results), "count": len(results)}
 
     return {"ticker": ticker, **signal}
