@@ -80,11 +80,11 @@
 
 ---
 
-## Phase 10: Production Deploy `[ ]`
-- [ ] Backend on Railway
-- [ ] Frontend on Vercel
-- [ ] Environment variables configured
-- [ ] Domain + SSL
+## Phase 10: Production Deploy `[x]` ✅
+- [x] Backend on Render (free tier, auto-deploys from main)
+- [x] Frontend on Vercel (free tier, auto-deploys from main)
+- [x] Environment variables configured
+- [x] Domain + SSL (Render: nse-trading-dashboard.onrender.com, Vercel: nse-trading-dashboard.vercel.app)
 
 ---
 
