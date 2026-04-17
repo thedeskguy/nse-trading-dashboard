@@ -57,10 +57,11 @@
 
 ---
 
-## Phase 7: Single-Session Enforcement `[ ]`
-- [ ] Detect concurrent sessions
-- [ ] Force logout of older session on new login
-- [ ] Verification flow
+## Phase 7: Single-Session Enforcement `[x]` ✅
+- [x] Detect concurrent sessions (Supabase Realtime subscription on `user_sessions`)
+- [x] Force logout of older session on new login (SessionWatcher signs out + redirects to `/login?reason=signed-in-elsewhere`)
+- [x] Verification flow (amber banner shown on login page after kick)
+- [x] Supabase `user_sessions` table migration (`docs/migrations/002_user_sessions.sql`)
 
 ---
 

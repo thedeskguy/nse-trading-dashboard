@@ -70,10 +70,8 @@ async def verify_supabase_jwt(
     - Falls back to unverified decode if SUPABASE_URL is not configured (dev mode).
     - Returns {"user_id": str, "email": str}
     """
-    # TEMP: auth bypass for dashboard debugging. Return a dummy user when no
-    # Authorization header is sent. Remove this block to re-enable auth.
     if not authorization:
-        return {"user_id": "dev-user", "email": "dev@localhost"}
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
 
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization header must start with 'Bearer '")
@@ -90,7 +88,7 @@ async def verify_supabase_jwt(
             payload = jwt.decode(
                 token,
                 jwks,
-                algorithms=["RS256"],
+                algorithms=["RS256", "ES256"],
                 audience="authenticated",
                 options={"verify_exp": True},
             )
