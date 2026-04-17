@@ -122,9 +122,19 @@ def _fetch_screener(ticker: str) -> dict:
         except Exception:
             return None
 
-    # Try consolidated first, fall back to standalone
+    # Try consolidated first, fall back to standalone.
+    # Some small caps (e.g. KRISHANA) have a 200-response consolidated page
+    # with empty `<span class="number"></span>` placeholders because they
+    # only file standalone accounts. Detect that and re-fetch standalone.
+    def _has_numbers(page: str) -> bool:
+        m = re.search(r'id="top-ratios"[^>]*>([\s\S]*?)</ul>', page)
+        if not m:
+            return False
+        nums = re.findall(r'class="number"[^>]*>([\s\S]*?)</span>', m.group(1))
+        return any(n.strip() for n in nums)
+
     html = _get(f"https://www.screener.in/company/{symbol}/consolidated/")
-    if not html or "Page not found" in html:
+    if not html or "Page not found" in html or not _has_numbers(html):
         html = _get(f"https://www.screener.in/company/{symbol}/")
     if not html:
         return result

@@ -8,6 +8,7 @@ import yfinance as yf
 import pandas as pd
 
 VALID_COMBOS = {
+    "1m":  ["1d", "5d"],
     "5m":  ["1d", "5d", "1mo"],
     "15m": ["1d", "5d", "1mo", "3mo"],
     "30m": ["1d", "5d", "1mo", "3mo"],
@@ -44,7 +45,10 @@ def validate_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 def _fetch_yfinance(ticker: str, interval: str, period: str, auto_adjust: bool = True) -> pd.DataFrame:
     """Raw yfinance fetch — raises ValueError on failure."""
-    t = yf.Ticker(ticker)
+    # yfinance needs NSE/BSE suffix; a bare symbol like "RELIANCE" matches nothing
+    # (whereas "INFY" happens to be a valid NYSE ADR and returned data misleadingly).
+    yf_symbol = resolve_ticker(ticker)
+    t = yf.Ticker(yf_symbol)
     df = t.history(period=period, interval=interval, auto_adjust=auto_adjust)
 
     if df.empty:
@@ -55,7 +59,7 @@ def _fetch_yfinance(ticker: str, interval: str, period: str, auto_adjust: bool =
 
     df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
 
-    if interval in ("5m", "15m", "30m", "1h"):
+    if interval in ("1m", "5m", "15m", "30m", "1h"):
         if df.index.tz is None:
             df.index = df.index.tz_localize("UTC")
         df.index = df.index.tz_convert("Asia/Kolkata")
@@ -100,20 +104,25 @@ def fetch_ohlcv(
             f"Valid periods: {VALID_COMBOS[interval]}"
         )
 
+    # Angel One has ~3-month history. For long periods, go straight to yfinance.
+    _ANGEL_OK_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo"}
+    _skip_angel = period not in _ANGEL_OK_PERIODS
+
     # ── Try Angel One first (5-second hard timeout) ────────────────────────────
-    import concurrent.futures
-    try:
-        from tools.fetch_angel_ohlcv import fetch_angel_ohlcv
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(fetch_angel_ohlcv, ticker, interval, period)
-            try:
-                df = future.result(timeout=5)
-                if df is not None and not df.empty:
-                    return df
-            except concurrent.futures.TimeoutError:
-                pass  # Angel One too slow — fall back immediately
-    except Exception:
-        pass
+    if not _skip_angel:
+        import concurrent.futures
+        try:
+            from tools.fetch_angel_ohlcv import fetch_angel_ohlcv
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                future = ex.submit(fetch_angel_ohlcv, ticker, interval, period)
+                try:
+                    df = future.result(timeout=5)
+                    if df is not None and not df.empty:
+                        return df
+                except concurrent.futures.TimeoutError:
+                    pass  # Angel One too slow — fall back immediately
+        except Exception:
+            pass
 
     # ── Fallback: Yahoo Finance ────────────────────────────────────────────────
     return _fetch_yfinance(ticker, interval, period, auto_adjust)

@@ -110,10 +110,11 @@ Confidence  = ((Raw Score + 100) / 200) × 100     (clamped 0–100)
                 "Price within 1% of Support",
                 "Price within 1% of Resistance",
                 "Price 0.5–2% above Support (bounced)",
+                "Price above Resistance (breakout)",
                 "Price below Support (breakdown)",
                 "Between S/R levels",
             ],
-            "Score": ["+15", "−15", "+10", "−10", "0"],
+            "Score": ["+15", "−15", "+10", "+10", "−10", "0"],
         })
 
     with tab_obv:
