@@ -7,7 +7,6 @@ All fields are always present in the returned dict; missing values are None.
 """
 
 import re
-import pandas as pd
 import yfinance as yf
 
 
@@ -374,10 +373,14 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     # PE Ratio (15 pts)
     pe = data.get("pe_trailing")
     if pe is not None and pe > 0:
-        if pe < 15:   pts, label = 15, f"Excellent (PE {pe:.1f}x)"
-        elif pe < 25: pts, label = 12, f"Good (PE {pe:.1f}x)"
-        elif pe < 40: pts, label = 8,  f"Fair (PE {pe:.1f}x)"
-        else:          pts, label = 2,  f"Expensive (PE {pe:.1f}x)"
+        if pe < 15:
+            pts, label = 15, f"Excellent (PE {pe:.1f}x)"
+        elif pe < 25:
+            pts, label = 12, f"Good (PE {pe:.1f}x)"
+        elif pe < 40:
+            pts, label = 8, f"Fair (PE {pe:.1f}x)"
+        else:
+            pts, label = 2, f"Expensive (PE {pe:.1f}x)"
     else:
         pts, label = 0, "N/A"
     breakdown["PE Ratio"] = {"points": pts, "max": 15, "label": label}
@@ -387,10 +390,14 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     roe = data.get("roe")
     if roe is not None:
         rp = roe * 100
-        if rp > 20:   pts, label = 15, f"Excellent ({rp:.1f}%)"
-        elif rp > 15: pts, label = 12, f"Good ({rp:.1f}%)"
-        elif rp > 10: pts, label = 8,  f"Fair ({rp:.1f}%)"
-        else:          pts, label = 2,  f"Weak ({rp:.1f}%)"
+        if rp > 20:
+            pts, label = 15, f"Excellent ({rp:.1f}%)"
+        elif rp > 15:
+            pts, label = 12, f"Good ({rp:.1f}%)"
+        elif rp > 10:
+            pts, label = 8, f"Fair ({rp:.1f}%)"
+        else:
+            pts, label = 2, f"Weak ({rp:.1f}%)"
     else:
         pts, label = 0, "N/A"
     breakdown["ROE"] = {"points": pts, "max": 15, "label": label}
@@ -399,10 +406,14 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     # Debt / Equity (15 pts)
     de = data.get("debt_to_equity")
     if de is not None:
-        if de < 30:    pts, label = 15, f"Low debt (D/E {de:.1f})"
-        elif de < 80:  pts, label = 10, f"Moderate (D/E {de:.1f})"
-        elif de < 150: pts, label = 5,  f"High (D/E {de:.1f})"
-        else:           pts, label = 0,  f"Very High (D/E {de:.1f})"
+        if de < 30:
+            pts, label = 15, f"Low debt (D/E {de:.1f})"
+        elif de < 80:
+            pts, label = 10, f"Moderate (D/E {de:.1f})"
+        elif de < 150:
+            pts, label = 5, f"High (D/E {de:.1f})"
+        else:
+            pts, label = 0, f"Very High (D/E {de:.1f})"
     else:
         pts, label = 0, "N/A"
     breakdown["Debt / Equity"] = {"points": pts, "max": 15, "label": label}
@@ -412,11 +423,16 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     rg = data.get("revenue_growth")
     if rg is not None:
         rp = rg * 100
-        if rp > 20:   pts, label = 15, f"Strong ({rp:.1f}%)"
-        elif rp > 10: pts, label = 10, f"Good ({rp:.1f}%)"
-        elif rp > 5:  pts, label = 6,  f"Moderate ({rp:.1f}%)"
-        elif rp > 0:  pts, label = 3,  f"Slow ({rp:.1f}%)"
-        else:          pts, label = 0,  f"Declining ({rp:.1f}%)"
+        if rp > 20:
+            pts, label = 15, f"Strong ({rp:.1f}%)"
+        elif rp > 10:
+            pts, label = 10, f"Good ({rp:.1f}%)"
+        elif rp > 5:
+            pts, label = 6, f"Moderate ({rp:.1f}%)"
+        elif rp > 0:
+            pts, label = 3, f"Slow ({rp:.1f}%)"
+        else:
+            pts, label = 0, f"Declining ({rp:.1f}%)"
     else:
         pts, label = 0, "N/A"
     breakdown["Revenue Growth"] = {"points": pts, "max": 15, "label": label}
@@ -426,10 +442,14 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     pm = data.get("profit_margin")
     if pm is not None:
         pp = pm * 100
-        if pp > 20:   pts, label = 15, f"Excellent ({pp:.1f}%)"
-        elif pp > 12: pts, label = 10, f"Good ({pp:.1f}%)"
-        elif pp > 5:  pts, label = 6,  f"Fair ({pp:.1f}%)"
-        else:          pts, label = 2,  f"Thin ({pp:.1f}%)"
+        if pp > 20:
+            pts, label = 15, f"Excellent ({pp:.1f}%)"
+        elif pp > 12:
+            pts, label = 10, f"Good ({pp:.1f}%)"
+        elif pp > 5:
+            pts, label = 6, f"Fair ({pp:.1f}%)"
+        else:
+            pts, label = 2, f"Thin ({pp:.1f}%)"
     else:
         pts, label = 0, "N/A"
     breakdown["Net Margin"] = {"points": pts, "max": 15, "label": label}
@@ -440,18 +460,25 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     alp = []
     rec = (data.get("recommendation") or "").lower()
     if rec in ("strong_buy", "strongbuy", "buy"):
-        ap += 15; alp.append("Analyst: BUY")
+        ap += 15
+        alp.append("Analyst: BUY")
     elif rec in ("hold", "neutral"):
-        ap += 8;  alp.append("Analyst: HOLD")
+        ap += 8
+        alp.append("Analyst: HOLD")
     elif rec in ("sell", "underperform", "strong_sell"):
         alp.append("Analyst: SELL")
 
     target = data.get("target_price")
     if target and current_price and current_price > 0:
         upside = (target - current_price) / current_price * 100
-        if upside > 15:  ap += 10; alp.append(f"Upside {upside:.1f}%")
-        elif upside > 0: ap += 5;  alp.append(f"Upside {upside:.1f}%")
-        else:             alp.append(f"Downside {upside:.1f}%")
+        if upside > 15:
+            ap += 10
+            alp.append(f"Upside {upside:.1f}%")
+        elif upside > 0:
+            ap += 5
+            alp.append(f"Upside {upside:.1f}%")
+        else:
+            alp.append(f"Downside {upside:.1f}%")
 
     breakdown["Analyst View"] = {
         "points": ap, "max": 25,

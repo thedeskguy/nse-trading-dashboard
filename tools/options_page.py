@@ -412,7 +412,6 @@ def render_analysis_summary(rec: dict, symbol: str):
     signal    = rec.get("underlying_signal", "HOLD")
     conf      = rec.get("confidence", 0)
     spot      = rec.get("spot", 0)
-    opt_type  = rec.get("option_type", "—")
     pcr_data  = rec.get("pcr", {})
     pcr_val   = pcr_data.get("pcr", "—")
     pcr_sig   = pcr_data.get("signal", "")
