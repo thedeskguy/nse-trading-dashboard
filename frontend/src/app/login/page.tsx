@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { claimSession } from "@/lib/session/sessionClaim";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,12 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/dashboard";
   const authError = searchParams.get("error");
+  const reason = searchParams.get("reason");
+  const [notice, setNotice] = useState<string | null>(
+    reason === "signed-in-elsewhere"
+      ? "You were signed out because this account signed in on another device."
+      : null
+  );
   const [error, setError] = useState<string | null>(
     authError === "auth_failed" ? "Google sign-in failed. Please try again." : null
   );
@@ -25,11 +32,13 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setNotice(null);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(error.message);
       setLoading(false);
     } else {
+      if (data.user) await claimSession(supabase, data.user.id);
       router.push(next);
       router.refresh();
     }
@@ -90,6 +99,11 @@ function LoginForm() {
         </div>
 
         <form onSubmit={handleEmailLogin} className="space-y-4">
+          {notice && (
+            <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+              {notice}
+            </div>
+          )}
           {error && (
             <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
               {error}

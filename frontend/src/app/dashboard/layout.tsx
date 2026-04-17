@@ -1,7 +1,8 @@
-// import { redirect } from "next/navigation";
-// import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { SessionWatcher } from "@/components/auth/SessionWatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +11,13 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // TEMP: auth check disabled for dashboard debugging. Restore below to re-enable.
-  // const supabase = await createClient();
-  // const { data: { user } } = await supabase.auth.getUser();
-  // if (!user) redirect("/login");
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
+      <SessionWatcher userId={user.id} />
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <TopBar />
