@@ -152,7 +152,6 @@ async def razorpay_webhook(
     plan_id = entity.get("plan_id")
     current_start = entity.get("current_start")
     current_end = entity.get("current_end")
-    status = entity.get("status")
     notes = entity.get("notes", {})
     user_id = notes.get("user_id")
 

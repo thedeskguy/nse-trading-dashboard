@@ -74,7 +74,7 @@ def _login():
     return obj
 
 
-def get_session() -> "SmartConnect":
+def get_session():
     """Return the cached SmartConnect session, logging in if needed."""
     global _obj
     if _obj is None:

@@ -1,7 +1,6 @@
 import sys
 import os
 import asyncio
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -9,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 
 from deps import verify_supabase_jwt
 from services.cache import cached
-from services.serializers import df_to_records, clean_dict
+from services.serializers import df_to_records
 
 router = APIRouter()
 
