@@ -28,8 +28,8 @@ describe("OI formatting", () => {
 
 describe("Price formatting", () => {
   it("returns em dash for falsy non-zero", () => {
-    expect(fmt(null as any)).toBe("—");
-    expect(fmt(undefined as any)).toBe("—");
+    expect(fmt(null as unknown as number)).toBe("—");
+    expect(fmt(undefined as unknown as number)).toBe("—");
   });
 
   it("formats zero as 0 (not em dash)", () => {

@@ -86,7 +86,7 @@ export default function SettingsPage() {
 
       {/* Feature comparison */}
       <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
-        <h2 className="font-semibold text-base">What's included</h2>
+        <h2 className="font-semibold text-base">What&apos;s included</h2>
         <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
           {[
             { label: "Stock signals (BUY / HOLD / SELL)", free: true },
