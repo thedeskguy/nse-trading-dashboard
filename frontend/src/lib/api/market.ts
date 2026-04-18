@@ -1,6 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "./client";
 
+// Polls market status once, then every 5 min. Used to adapt staleTime elsewhere.
+export function useMarketStatus() {
+  return useQuery({
+    queryKey: ["market-status"],
+    queryFn: () => apiFetch<{ is_open: boolean }>("/api/v1/market/status"),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    retry: false,
+  });
+}
+
+// 5 min when market is open, 30 min when closed.
+function adaptiveMs(isOpen: boolean | undefined, openMs: number): number {
+  return isOpen === false ? 30 * 60 * 1000 : openMs;
+}
+
 export interface IndexData {
   key: string;
   name: string;
@@ -14,11 +30,13 @@ export interface IndicesResponse {
 }
 
 export function useIndices() {
+  const { data: status } = useMarketStatus();
+  const interval = adaptiveMs(status?.is_open, 5 * 60 * 1000);
   return useQuery({
     queryKey: ["indices"],
     queryFn: () => apiFetch<IndicesResponse>("/api/v1/market/indices"),
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: interval,
+    refetchInterval: interval,
   });
 }
 

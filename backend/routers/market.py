@@ -10,7 +10,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 from deps import verify_supabase_jwt
 from services.cache import cached
 from services.limiter import limiter
+from services.logger import get_logger
+from services.market_hours import is_market_open, adaptive_ttl
 from services.serializers import df_to_records
+
+log = get_logger(__name__)
 
 # Validated query-param types
 _TICKER = Query(..., pattern=r"^[A-Z0-9.\-&]{1,30}$", description="Ticker e.g. RELIANCE.NS")
@@ -80,6 +84,12 @@ _INDICES = [
 ]
 
 
+@router.get("/market/status")
+async def get_market_status(user: dict = Depends(verify_supabase_jwt)):
+    """Return whether NSE is currently in its regular trading session."""
+    return {"is_open": is_market_open()}
+
+
 @router.get("/market/indices")
 async def get_indices(user: dict = Depends(verify_supabase_jwt)):
     """Return last price and day change % for major NSE/BSE indices."""
@@ -101,7 +111,8 @@ async def get_indices(user: dict = Depends(verify_supabase_jwt)):
                 "change_pct": round(change_pct, 2),
                 "up": change_pct >= 0,
             })
-        except Exception:
+        except Exception as e:
+            log.exception("Failed to fetch index %s: %s", idx["ticker"], e)
             result.append({
                 "key": idx["key"],
                 "name": idx["name"],
@@ -142,10 +153,11 @@ async def get_ohlcv(
                 df = compute_obv(df)
             return df
 
-        df = await cached(cache_key, ttl=300, fn=_fetch)
+        df = await cached(cache_key, ttl=adaptive_ttl(300), fn=_fetch)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        log.exception("OHLCV fetch failed for %s: %s", ticker, e)
         raise HTTPException(status_code=503, detail=f"Market data API failure: {e}")
 
     if with_indicators:
@@ -207,6 +219,7 @@ async def search_stocks(
             ]
         }
     except Exception as e:
+        log.exception("Stock search failed for %r: %s", q, e)
         raise HTTPException(status_code=503, detail=f"Stock search unavailable: {e}")
 
 
@@ -268,11 +281,14 @@ async def get_signal(
             df = compute_all(df)
             return generate_signal(df)
 
-        signal = await cached(cache_key, ttl=300, fn=_compute)
+        signal = await cached(cache_key, ttl=adaptive_ttl(300), fn=_compute)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        log.exception("Signal computation failed for %s: %s", ticker, e)
         raise HTTPException(status_code=503, detail=f"Signal computation failed: {e}")
+
+    return {"ticker": ticker, **signal}
 
 
 @router.get("/market/scan")
@@ -309,7 +325,8 @@ async def scan_nifty50(request: Request, user: dict = Depends(verify_supabase_jw
                             "change_pct": change_pct,
                         }
                     return await asyncio.to_thread(_compute)
-                except Exception:
+                except Exception as e:
+                    log.exception("Scan failed for %s: %s", ticker, e)
                     return {
                         "ticker": ticker, "name": name,
                         "signal": None, "confidence": None,
@@ -319,7 +336,5 @@ async def scan_nifty50(request: Request, user: dict = Depends(verify_supabase_jw
         tasks = [_scan_one(t, n) for t, n in NIFTY_50]
         return await asyncio.gather(*tasks)
 
-    results = await cached(cache_key, ttl=600, fn=_do_scan)
+    results = await cached(cache_key, ttl=adaptive_ttl(600), fn=_do_scan)
     return {"stocks": list(results), "count": len(results)}
-
-    return {"ticker": ticker, **signal}

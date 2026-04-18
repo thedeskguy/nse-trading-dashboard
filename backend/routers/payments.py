@@ -13,6 +13,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 from config import get_settings
 from deps import verify_supabase_jwt
 from fastapi import Depends
+from services.logger import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter()
 
@@ -59,7 +62,7 @@ async def get_subscription_status(
 
     except Exception as e:
         # Don't expose internals — return free gracefully
-        print(f"subscription-status error: {e}")
+        log.exception("subscription-status error for user %s: %s", user.get("user_id"), e)
         return {"plan": "free", "status": "inactive", "current_period_end": None}
 
 
@@ -215,6 +218,6 @@ async def razorpay_webhook(
 
         except Exception as e:
             # Log but don't fail — Razorpay expects 200 OK even on downstream errors
-            print(f"Supabase update error for event '{event}': {e}")
+            log.exception("Supabase update error for event '%s': %s", event, e)
 
     return {"received": True}
