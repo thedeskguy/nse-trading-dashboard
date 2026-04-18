@@ -22,6 +22,7 @@ import { MLPredictionCard } from "@/components/analysis/MLPredictionCard";
 import { VerdictBanner, classifyVerdict, type Verdict } from "@/components/analysis/VerdictBanner";
 import { useSignal, useOHLCV, useCompanyInfo } from "@/lib/api/market";
 import { useFundamentals, useMLPredict } from "@/lib/api/analysis";
+import { useWebSocketQuote } from "@/lib/api/websocket";
 import { INTRADAY, type Interval, type Period } from "@/lib/chartRanges";
 import { AlertCircle, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
 import { DataFreshness } from "@/components/ui/DataFreshness";
@@ -115,10 +116,13 @@ function TickerDashboard({ ticker }: { ticker: string }) {
       ? companyInfo.name
       : fundsName ?? ticker.replace(/\.(NS|BO)$/i, "");
 
+  const wsQuote = useWebSocketQuote(ticker);
+  // WS price takes precedence over the cached signal price once connected
+  const livePrice = wsQuote?.price ?? signal?.last_price ?? null;
   const priceLabel = signalLoading
     ? null
-    : signal?.last_price
-    ? `₹${signal.last_price.toFixed(2)}`
+    : livePrice
+    ? `₹${livePrice.toFixed(2)}`
     : signalError
     ? "Unavailable"
     : "—";

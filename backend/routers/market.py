@@ -2,7 +2,8 @@ import sys
 import os
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+import re
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from typing import Annotated
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
@@ -338,3 +339,68 @@ async def scan_nifty50(request: Request, user: dict = Depends(verify_supabase_jw
 
     results = await cached(cache_key, ttl=adaptive_ttl(600), fn=_do_scan)
     return {"stocks": list(results), "count": len(results)}
+
+
+_TICKER_RE = re.compile(r"^[A-Z0-9.\-&]{1,30}$")
+
+
+@router.websocket("/ws/quote/{ticker}")
+async def ws_quote(
+    websocket: WebSocket,
+    ticker: str,
+    token: str = Query(..., description="Supabase access token"),
+):
+    """
+    WebSocket live-quote stream for a single ticker.
+    Pushes {price, change_pct, ticker} at market-adaptive intervals.
+    Auth: pass the Supabase access token as ?token=<jwt>.
+    """
+    # Validate ticker before accepting the connection
+    if not _TICKER_RE.match(ticker):
+        await websocket.close(code=1008, reason="Invalid ticker")
+        return
+
+    # Validate JWT — reject before accepting so the client gets a close frame
+    from deps import _get_jwks, _decode_unverified
+    from jose import jwt as jose_jwt, JWTError
+    from config import get_settings
+
+    jwks = await _get_jwks()
+    settings = get_settings()
+    try:
+        if jwks is None:
+            if settings.ALLOW_UNVERIFIED_JWT != "1":
+                await websocket.close(code=4401, reason="JWKS unavailable")
+                return
+            jose_jwt  # noqa: reference to suppress unused-import warning
+            _decode_unverified(token)
+        else:
+            jose_jwt.decode(token, jwks, algorithms=["RS256", "ES256"], audience="authenticated")
+    except (JWTError, HTTPException):
+        await websocket.close(code=4401, reason="Unauthorized")
+        return
+
+    await websocket.accept()
+
+    try:
+        while True:
+            interval_s = 30 if is_market_open() else 300
+            try:
+                from tools.fetch_stock_data import _fetch_yfinance
+                df = await asyncio.to_thread(_fetch_yfinance, ticker, "1d", "5d")
+                if len(df) >= 2:
+                    prev = float(df["Close"].iloc[-2])
+                    last = float(df["Close"].iloc[-1])
+                    change_pct = round((last - prev) / prev * 100, 2)
+                    await websocket.send_json({
+                        "ticker": ticker,
+                        "price": round(last, 2),
+                        "change_pct": change_pct,
+                    })
+            except Exception as e:
+                log.warning("ws_quote fetch failed for %s: %s", ticker, e)
+                # Don't close — keep the connection alive and retry next interval
+
+            await asyncio.sleep(interval_s)
+    except WebSocketDisconnect:
+        pass

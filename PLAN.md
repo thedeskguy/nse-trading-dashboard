@@ -116,10 +116,10 @@ Captured from a full-stack audit (2026-04-17). Tackle in priority order whenever
 - [x] Show "data from N minutes ago" staleness indicators in the dashboard UI (`DataFreshness` component on scanner, options, stock pages).
 - [x] Drop unused Alpha Vantage slot in `backend/config.py` — was never added; confirmed absent.
 - [x] **Free beta launch**: PaywallGate bypassed (pass-through), settings page updated, landing page pricing replaced with free beta card.
-- [ ] WebSocket live quotes via Angel One's feed (replace polling).
-- [ ] Document (or refactor) the `threading.Lock` in `backend/services/angel_session.py` inside an async app.
-- [ ] Verify Vercel prod sets `NEXT_PUBLIC_API_URL` — default is `http://localhost:8000`.
-- [ ] Add a circuit-breaker around yfinance for 429 storms.
+- [x] WebSocket live quotes (`/api/v1/ws/quote/{ticker}` + `useWebSocketQuote` hook). WS price supersedes cached signal price on stock pages. Angel One token-based feed deferred to v2 (requires instrument master mapping).
+- [x] Document (or refactor) the `threading.Lock` in `backend/services/angel_session.py` — lock is correct (called via `asyncio.to_thread`); explanation comment added.
+- [x] Verify Vercel prod sets `NEXT_PUBLIC_API_URL` — added console.warn in `client.ts` when localhost is used in production; `.env.example` updated with Render URL hint.
+- [x] Add a circuit-breaker around yfinance for 429 storms (`backend/services/circuit_breaker.py`, wired into `tools/fetch_stock_data._fetch_yfinance`).
 
 ### Open questions (answer before starting the P0/P1 work)
 1. Is `SUPABASE_URL` set in Railway prod? Decides whether the deps.py fallback is live right now.

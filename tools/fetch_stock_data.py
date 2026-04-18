@@ -44,18 +44,43 @@ def validate_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _fetch_yfinance(ticker: str, interval: str, period: str, auto_adjust: bool = True) -> pd.DataFrame:
-    """Raw yfinance fetch — raises ValueError on failure."""
-    # yfinance needs NSE/BSE suffix; a bare symbol like "RELIANCE" matches nothing
-    # (whereas "INFY" happens to be a valid NYSE ADR and returned data misleadingly).
+    """Raw yfinance fetch — raises ValueError on failure or when circuit is open."""
+    try:
+        from services.circuit_breaker import yfinance_breaker
+        _breaker = yfinance_breaker
+    except ImportError:
+        _breaker = None
+
+    if _breaker and _breaker.is_open():
+        raise ValueError(
+            f"yfinance circuit is open after repeated 429/failures — "
+            f"retry in ~{_breaker.cooldown_seconds}s."
+        )
+
     yf_symbol = resolve_ticker(ticker)
     t = yf.Ticker(yf_symbol)
-    df = t.history(period=period, interval=interval, auto_adjust=auto_adjust)
+
+    try:
+        df = t.history(period=period, interval=interval, auto_adjust=auto_adjust)
+    except Exception as exc:
+        # yfinance raises generic exceptions for HTTP 429 and other errors.
+        msg = str(exc).lower()
+        if "429" in msg or "too many requests" in msg or "rate limit" in msg:
+            if _breaker:
+                _breaker.record_failure()
+        raise ValueError(f"yfinance error for '{ticker}': {exc}") from exc
 
     if df.empty:
+        # An empty response for a valid ticker usually means a 429-throttle with no exception.
+        if _breaker:
+            _breaker.record_failure()
         raise ValueError(
             f"No data returned for '{ticker}'. "
             "Check that the ticker is correct and the market has trading history."
         )
+
+    if _breaker:
+        _breaker.record_success()
 
     df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
 

@@ -2,6 +2,18 @@ import { createClient } from "@/lib/supabase/client";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// Warn once if deployed to production with the localhost default still set.
+if (
+  typeof window !== "undefined" &&
+  process.env.NODE_ENV === "production" &&
+  API_BASE.includes("localhost")
+) {
+  console.warn(
+    "[TradeDash] NEXT_PUBLIC_API_URL is pointing to localhost in production. " +
+    "Set it to your Railway backend URL in Vercel environment variables.",
+  );
+}
+
 async function getToken(forceRefresh = false): Promise<string | null> {
   const supabase = createClient();
   if (forceRefresh) {
