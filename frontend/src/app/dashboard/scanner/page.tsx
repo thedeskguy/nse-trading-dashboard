@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useScanner, type ScanResult } from "@/lib/api/scanner";
+import { useScanner, type ScanResult, type ScanIndex } from "@/lib/api/scanner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus, ArrowUpDown, RefreshCw, AlertCircle } from "lucide-react";
@@ -33,9 +33,17 @@ function ConfidenceBar({ value }: { value: number | null }) {
   );
 }
 
+const SCAN_INDICES: { key: ScanIndex; label: string; count: number }[] = [
+  { key: "NIFTY50",  label: "Nifty 50",  count: 50  },
+  { key: "NIFTY100", label: "Nifty 100", count: 100 },
+  { key: "NIFTY200", label: "Nifty 200", count: 200 },
+  { key: "NIFTY500", label: "Nifty 500", count: 500 },
+];
+
 export default function ScannerPage() {
   const router = useRouter();
-  const { data, isLoading, isError, dataUpdatedAt, refetch, isFetching } = useScanner();
+  const [scanIndex, setScanIndex] = useState<ScanIndex>("NIFTY50");
+  const { data, isLoading, isError, dataUpdatedAt, refetch, isFetching } = useScanner(scanIndex);
   const [filter, setFilter] = useState<SignalFilter>("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("confidence");
   const [sortAsc, setSortAsc] = useState(false);
@@ -78,7 +86,7 @@ export default function ScannerPage() {
         <div>
           <h1 className="text-2xl font-bold">Scanner</h1>
           <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2">
-            Nifty 50 batch signal scan · 10-min cache
+            Signal scan · 10-min cache
             <DataFreshness updatedAt={dataUpdatedAt} />
           </p>
         </div>
@@ -90,6 +98,29 @@ export default function ScannerPage() {
           <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} />
           Refresh
         </button>
+      </div>
+
+      {/* Index selector */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {SCAN_INDICES.map(({ key, label, count }) => (
+          <button
+            key={key}
+            onClick={() => { setScanIndex(key); setFilter("ALL"); }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+              scanIndex === key
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/50 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+            <span className="ml-1.5 opacity-60">{count}</span>
+          </button>
+        ))}
+        {(scanIndex === "NIFTY200" || scanIndex === "NIFTY500") && (
+          <span className="text-xs text-muted-foreground ml-1">
+            · first load may take 30–60s
+          </span>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -206,7 +237,8 @@ export default function ScannerPage() {
 
       {isLoading && (
         <p className="text-xs text-muted-foreground text-center">
-          Scanning all 50 stocks — this takes ~15–20s on first load…
+          Scanning {SCAN_INDICES.find(i => i.key === scanIndex)?.count} stocks — first load takes{" "}
+          {scanIndex === "NIFTY500" ? "~60–90s" : scanIndex === "NIFTY200" ? "~30–60s" : "~15–20s"}…
         </p>
       )}
     </div>
