@@ -21,7 +21,8 @@ import { FundamentalsBreakdown } from "@/components/analysis/FundamentalsBreakdo
 import { MLPredictionCard } from "@/components/analysis/MLPredictionCard";
 import { VerdictBanner, classifyVerdict, type Verdict } from "@/components/analysis/VerdictBanner";
 import { useSignal, useOHLCV, useCompanyInfo } from "@/lib/api/market";
-import { useFundamentals, useMLPredict } from "@/lib/api/analysis";
+import { useFundamentals, useMLPredict, useConfluence } from "@/lib/api/analysis";
+import { ConfluenceGrid, ConfluenceGridSkeleton, ConfluenceGridError } from "@/components/analysis/ConfluenceGrid";
 import { useWebSocketQuote } from "@/lib/api/websocket";
 import { INTRADAY, type Interval, type Period } from "@/lib/chartRanges";
 import { AlertCircle, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
@@ -90,6 +91,7 @@ function TickerDashboard({ ticker }: { ticker: string }) {
   const { data: companyInfo } = useCompanyInfo(ticker);
   const { data: fundamentals, isLoading: fundsLoading, isFetching: fundsFetching } = useFundamentals(ticker);
   const { data: ml, isLoading: mlLoading, isFetching: mlFetching } = useMLPredict(ticker);
+  const { data: confluence, isLoading: confluenceLoading, isFetching: confluenceFetching, isError: confluenceError } = useConfluence(ticker);
 
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("technical");
@@ -100,13 +102,16 @@ function TickerDashboard({ ticker }: { ticker: string }) {
       queryClient.invalidateQueries({ queryKey: ["fundamentals", ticker] });
     } else if (activeTab === "ml") {
       queryClient.invalidateQueries({ queryKey: ["ml-predict", ticker] });
+    } else if (activeTab === "confluence") {
+      queryClient.invalidateQueries({ queryKey: ["confluence", ticker] });
     }
   }, [activeTab, ticker, queryClient]);
 
   const isRefreshing =
     (activeTab === "technical" && signalFetching) ||
     (activeTab === "fundamental" && fundsFetching) ||
-    (activeTab === "ml" && mlFetching);
+    (activeTab === "ml" && mlFetching) ||
+    (activeTab === "confluence" && confluenceFetching);
 
   const fundsName = fundamentals?.fundamentals?.name
     ? String(fundamentals.fundamentals.name)
@@ -279,6 +284,7 @@ function TickerDashboard({ ticker }: { ticker: string }) {
             <TabsTrigger value="technical" className="rounded-lg">Technical</TabsTrigger>
             <TabsTrigger value="fundamental" className="rounded-lg">Fundamental</TabsTrigger>
             <TabsTrigger value="ml" className="rounded-lg">ML Prediction</TabsTrigger>
+            <TabsTrigger value="confluence" className="rounded-lg">Confluence</TabsTrigger>
           </TabsList>
           <button
             onClick={refreshTab}
@@ -366,6 +372,17 @@ function TickerDashboard({ ticker }: { ticker: string }) {
           ) : (
             <ErrorCard className="h-32" />
           )}
+        </TabsContent>
+
+        {/* Confluence */}
+        <TabsContent value="confluence" className="mt-4">
+          {confluenceLoading ? (
+            <ConfluenceGridSkeleton />
+          ) : confluence ? (
+            <ConfluenceGrid data={confluence} />
+          ) : confluenceError ? (
+            <ConfluenceGridError />
+          ) : null}
         </TabsContent>
       </Tabs>
     </div>

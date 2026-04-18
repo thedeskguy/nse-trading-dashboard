@@ -1,5 +1,6 @@
 import sys
 import os
+import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -82,3 +83,82 @@ async def get_ml_prediction(
         raise HTTPException(status_code=503, detail=f"ML prediction failed: {e}")
 
     return {"ticker": ticker, **prediction}
+
+
+# Timeframe config: (yfinance interval, period to fetch, display label)
+_CONFLUENCE_TIMEFRAMES = [
+    ("1d",  "3mo",  "1D"),
+    ("1wk", "2y",   "1W"),
+    ("1mo", "5y",   "1M"),
+]
+
+
+@router.get("/analysis/confluence")
+@limiter.limit("10/minute")
+async def get_confluence(
+    request: Request,
+    ticker: str = _TICKER,
+    user: dict = Depends(verify_supabase_jwt),
+):
+    """Run signal across 1D / 1W / 1M timeframes and return a confluence grid."""
+    cache_key = f"confluence:{ticker}"
+
+    async def _compute_all():
+        from tools.fetch_stock_data import fetch_ohlcv
+        from tools.compute_indicators import compute_all
+        from tools.generate_signals import generate_signal
+
+        async def _one(interval: str, period: str, label: str):
+            try:
+                def _run():
+                    df = fetch_ohlcv(ticker, interval, period)
+                    df = compute_all(df)
+                    return generate_signal(df)
+                sig = await asyncio.to_thread(_run)
+                return {
+                    "timeframe": label,
+                    "signal": sig["signal"],
+                    "confidence": sig["confidence"],
+                    "components": {
+                        k: {"points": v["points"], "label": v["signal"]}
+                        for k, v in sig["components"].items()
+                    },
+                }
+            except Exception as e:
+                log.exception("Confluence %s %s failed: %s", ticker, label, e)
+                return {"timeframe": label, "signal": None, "confidence": None, "components": {}}
+
+        results = await asyncio.gather(*[_one(iv, p, lbl) for iv, p, lbl in _CONFLUENCE_TIMEFRAMES])
+        return list(results)
+
+    timeframes = await cached(cache_key, ttl=adaptive_ttl(600), fn=_compute_all)
+
+    # Derive overall confluence summary
+    signals = [t["signal"] for t in timeframes if t["signal"]]
+    buy_count  = signals.count("BUY")
+    sell_count = signals.count("SELL")
+    hold_count = signals.count("HOLD")
+
+    if buy_count == 3:
+        strength = "Strong BUY"
+    elif sell_count == 3:
+        strength = "Strong SELL"
+    elif buy_count >= 2:
+        strength = "Moderate BUY"
+    elif sell_count >= 2:
+        strength = "Moderate SELL"
+    elif hold_count >= 2:
+        strength = "Neutral"
+    else:
+        strength = "Mixed"
+
+    return {
+        "ticker": ticker,
+        "timeframes": timeframes,
+        "summary": {
+            "strength": strength,
+            "buy_count": buy_count,
+            "sell_count": sell_count,
+            "hold_count": hold_count,
+        },
+    }

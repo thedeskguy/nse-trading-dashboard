@@ -43,3 +43,35 @@ export function useMLPredict(ticker: string) {
     enabled: !!ticker,
   });
 }
+
+export interface ConfluenceComponent {
+  points: number;
+  label: string;
+}
+
+export interface ConfluenceTimeframe {
+  timeframe: "1D" | "1W" | "1M";
+  signal: "BUY" | "SELL" | "HOLD" | null;
+  confidence: number | null;
+  components: Record<string, ConfluenceComponent>;
+}
+
+export interface ConfluenceResponse {
+  ticker: string;
+  timeframes: ConfluenceTimeframe[];
+  summary: {
+    strength: string;
+    buy_count: number;
+    sell_count: number;
+    hold_count: number;
+  };
+}
+
+export function useConfluence(ticker: string) {
+  return useQuery({
+    queryKey: ["confluence", ticker],
+    queryFn: () => apiFetch<ConfluenceResponse>("/api/v1/analysis/confluence", { ticker }),
+    staleTime: 10 * 60 * 1000,
+    enabled: !!ticker,
+  });
+}
