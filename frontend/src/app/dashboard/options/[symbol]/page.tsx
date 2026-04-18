@@ -11,8 +11,6 @@ import { PCRCard } from "@/components/options/PCRCard";
 import { TradeCard } from "@/components/options/TradeCard";
 import { OITornadoChart } from "@/components/options/OITornadoChart";
 import { OptionsChainTable } from "@/components/options/OptionsChainTable";
-import { PaywallGate } from "@/components/payments/PaywallGate";
-
 const SYMBOLS = ["NIFTY", "BANKNIFTY", "MIDCPNIFTY"] as const;
 type Symbol = typeof SYMBOLS[number];
 
@@ -168,9 +166,5 @@ export default function OptionsPage() {
   const params = useParams();
   const raw = Array.isArray(params.symbol) ? params.symbol[0] : params.symbol as string;
   const symbol = (raw?.toUpperCase() ?? "NIFTY") as Symbol;
-  return (
-    <PaywallGate feature="Options Dashboard">
-      <OptionsDashboard symbol={symbol} />
-    </PaywallGate>
-  );
+  return <OptionsDashboard symbol={symbol} />;
 }

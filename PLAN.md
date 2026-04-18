@@ -171,6 +171,60 @@ Captured from a full-stack audit (2026-04-17). Tackle in priority order whenever
 
 ---
 
+---
+
+## Phase 12: Expanded Scanner — Nifty 100 / 200 / 500 `[ ]`
+- [ ] Backend: Add stock lists for Nifty 100, 200, 500 (NSE CSV or hardcoded lists in `backend/routers/market.py`)
+- [ ] Backend: `GET /api/v1/market/scan?index=NIFTY50|NIFTY100|NIFTY200|NIFTY500` — same parallel asyncio pattern as existing scan, 10-min cache per index
+- [ ] Frontend: Index selector pills (NIFTY 50 / 100 / 200 / 500) above scanner table in `frontend/src/app/dashboard/scanner/page.tsx`
+- [ ] Frontend: Pass selected index as query param to `useScanner(index)` hook
+
+---
+
+## Phase 13: Multi-timeframe Confluence `[ ]`
+- [ ] Backend: Add `timeframe` param to `/api/v1/analysis/signal?ticker=X&timeframe=1d|1wk|1mo` — yfinance already supports these intervals
+- [ ] Backend: New endpoint `GET /api/v1/analysis/confluence?ticker=X` returns signal for all 3 timeframes in one response
+- [ ] Frontend: `ConfluenceGrid` component — 3×6 heatmap (rows: 1D / 1W / 1M, cols: RSI / MACD / BB / EMA / Volume / Stoch), cell color = buy/hold/sell
+- [ ] Frontend: Add confluence tab to stock detail page (`frontend/src/app/dashboard/stocks/[ticker]/page.tsx`)
+- [ ] Strength score: count of timeframes agreeing on same direction, shown as "Confluence: Strong BUY (3/3)"
+
+---
+
+## Phase 14: Options Payoff Diagram `[ ]`
+- [ ] Frontend-only (uses existing chain data): `PayoffChart` component using Recharts line chart
+- [ ] Strategy builder UI: pick legs (long call / long put / bull call spread / bear put spread / iron condor), auto-fill strikes near ATM from chain data
+- [ ] Compute P&L at expiry across range of underlying prices: `pnl[price] = Σ(leg.payoff(price) × lot_size) − net_premium_paid`
+- [ ] Annotate: breakeven points, max profit, max loss
+- [ ] Add "Payoff" tab to options page (`frontend/src/app/dashboard/options/[symbol]/page.tsx`) alongside OI Tornado / Chain tabs
+
+---
+
+## Phase 15: Backtesting Engine `[ ]`
+- [ ] Backend: `GET /api/v1/analysis/backtest?ticker=X&strategy=ml_signal&period=1y` — replay daily signals on historical OHLCV, compute per-trade P&L
+- [ ] Requires: `price_history` Supabase table (see Phase 11 P1) or on-demand yfinance historical pull
+- [ ] Return: list of trades (date, signal, entry, exit, pnl%), aggregate stats (win rate, avg gain, avg loss)
+- [ ] Frontend: Backtest tab on stock page — equity curve line chart + summary cards (win rate, total return, # trades)
+
+---
+
+## Phase 16: Real-time Trade Tracker / P&L `[ ]`
+- [ ] Supabase: `user_trades` table — `(id, user_id, ticker, side, qty, entry_price, entry_at, exit_price, exit_at, status)`
+- [ ] Backend: `POST /api/v1/trades`, `GET /api/v1/trades`, `PUT /api/v1/trades/{id}/close`
+- [ ] Frontend: Trade log UI — open positions with live P&L via WebSocket quote feed, closed trades with realized P&L
+- [ ] Portfolio summary card: total invested, current value, unrealized P&L, realized P&L
+- [ ] Add "Trades" nav item in Sidebar + MobileNav
+
+---
+
+## Phase 17: Chart Drawing Tools `[ ]`
+- [ ] Lightweight-charts v5 (already installed) supports `ISeriesPrimitive` plugins for overlays
+- [ ] Implement: trendline draw (click-drag two points), horizontal support/resistance line, Fibonacci retracement
+- [ ] Toolbar above chart on stock page with draw/select/erase toggle buttons
+- [ ] Persist drawings in localStorage keyed by ticker (opt: Supabase for cross-device sync)
+- [ ] Changes confined to `frontend/src/app/dashboard/stocks/[ticker]/page.tsx` + chart component
+
+---
+
 ## Notes
 - Phase 3 complete. Auth guard is live (middleware + server layout). Google OAuth + email/password both wired.
 - Python/Streamlit backend (`dashboard.py`, `pages/index_options.py`) is the data source for Phases 4–5.
