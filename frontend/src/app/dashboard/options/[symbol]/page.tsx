@@ -11,8 +11,16 @@ import { PCRCard } from "@/components/options/PCRCard";
 import { TradeCard } from "@/components/options/TradeCard";
 import { OITornadoChart } from "@/components/options/OITornadoChart";
 import { OptionsChainTable } from "@/components/options/OptionsChainTable";
+import { PayoffChart } from "@/components/options/PayoffChart";
+
 const SYMBOLS = ["NIFTY", "BANKNIFTY", "MIDCPNIFTY"] as const;
 type Symbol = typeof SYMBOLS[number];
+
+const LOT_SIZES: Record<Symbol, number> = {
+  NIFTY: 75,
+  BANKNIFTY: 15,
+  MIDCPNIFTY: 75,
+};
 
 function ErrorCard() {
   return (
@@ -125,11 +133,12 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
         )}
       </div>
 
-      {/* OI Tornado + Chain Tabs */}
+      {/* OI Tornado + Chain + Payoff Tabs */}
       <Tabs defaultValue="tornado">
         <TabsList className="bg-muted/50 rounded-xl">
           <TabsTrigger value="tornado" className="rounded-lg">OI Tornado</TabsTrigger>
           <TabsTrigger value="chain" className="rounded-lg">Options Chain</TabsTrigger>
+          <TabsTrigger value="payoff" className="rounded-lg">Payoff Diagram</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tornado" className="mt-4">
@@ -154,6 +163,23 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
             <div className="bg-card border border-border rounded-2xl p-8 text-center text-muted-foreground text-sm flex flex-col items-center gap-2">
               <AlertCircle size={18} className="opacity-40" />
               {recError ? "Backend offline — chain data unavailable" : "No chain data available"}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="payoff" className="mt-4">
+          {chainLoading ? (
+            <Skeleton className="h-96 rounded-2xl" />
+          ) : chainData?.chain?.length && spot != null ? (
+            <PayoffChart
+              chain={chainData.chain}
+              spot={spot}
+              lotSize={LOT_SIZES[symbol]}
+            />
+          ) : (
+            <div className="bg-card border border-border rounded-2xl p-8 text-center text-muted-foreground text-sm flex flex-col items-center gap-2">
+              <AlertCircle size={18} className="opacity-40" />
+              {recError ? "Backend offline — chain data unavailable" : "No chain data to build payoff"}
             </div>
           )}
         </TabsContent>
