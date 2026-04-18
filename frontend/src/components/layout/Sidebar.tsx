@@ -8,6 +8,7 @@ import {
   Activity,
   ScanSearch,
   Settings,
+  BookOpen,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +19,7 @@ const navItems = [
   { label: "Options", href: "/dashboard/options/NIFTY", icon: Activity },
   { label: "Scanner", href: "/dashboard/scanner", icon: ScanSearch },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
+  { label: "How It Works", href: "/dashboard/about", icon: BookOpen },
 ];
 
 export function Sidebar() {
