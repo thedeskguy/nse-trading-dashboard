@@ -2,14 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, BarChart3, Activity, ScanSearch, Settings } from "lucide-react";
+import { LayoutDashboard, Activity, ScanSearch, Settings, BookOpen } from "lucide-react";
 
 const navItems = [
-  { label: "Home",    href: "/dashboard",                  icon: LayoutDashboard },
-  { label: "Stocks",  href: "/dashboard/stocks",            icon: BarChart3 },
-  { label: "Options", href: "/dashboard/options/NIFTY",     icon: Activity },
-  { label: "Scanner", href: "/dashboard/scanner",           icon: ScanSearch },
-  { label: "Settings",href: "/dashboard/settings",          icon: Settings },
+  { label: "Home",     href: "/dashboard",               icon: LayoutDashboard },
+  { label: "Options",  href: "/dashboard/options/NIFTY", icon: Activity },
+  { label: "Scanner",  href: "/dashboard/scanner",       icon: ScanSearch },
+  { label: "Settings", href: "/dashboard/settings",      icon: Settings },
+  { label: "About",    href: "/dashboard/about",         icon: BookOpen },
 ];
 
 export function MobileNav() {
@@ -21,6 +21,7 @@ export function MobileNav() {
         {navItems.map((item) => {
           const isActive =
             pathname === item.href ||
+            (item.href === "/dashboard" && pathname.startsWith("/dashboard/stocks")) ||
             (item.href !== "/dashboard" && pathname.startsWith(item.href));
           return (
             <Link

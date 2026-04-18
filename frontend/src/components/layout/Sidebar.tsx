@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  BarChart3,
   Activity,
   ScanSearch,
   Settings,
@@ -15,7 +14,6 @@ import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Stocks", href: "/dashboard/stocks", icon: BarChart3 },
   { label: "Options", href: "/dashboard/options/NIFTY", icon: Activity },
   { label: "Scanner", href: "/dashboard/scanner", icon: ScanSearch },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
@@ -39,6 +37,7 @@ export function Sidebar() {
         {navItems.map((item) => {
           const isActive =
             pathname === item.href ||
+            (item.href === "/dashboard" && pathname.startsWith("/dashboard/stocks")) ||
             (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
           return (
