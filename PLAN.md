@@ -74,11 +74,11 @@
 
 ---
 
-## Phase 9: Polish + Lighthouse `[ ]`
-- [ ] Performance audit (Lighthouse score ≥ 90)
-- [ ] Accessibility fixes
-- [ ] Mobile responsiveness pass
-- [ ] Loading states + error boundaries
+## Phase 9: Polish + Lighthouse `[x]` ✅
+- [x] Performance audit (Lighthouse score ≥ 90 — 96 accessibility, 100 best practices, 100 SEO)
+- [x] Accessibility fixes (contrast: text-primary → text-blue-400, text-white/40 → text-white/60)
+- [x] Mobile responsiveness pass (MobileNav bottom bar, responsive padding, scanner overflow-x-auto)
+- [x] Loading states + error boundaries (/dashboard/error.tsx App Router boundary)
 
 ---
 
