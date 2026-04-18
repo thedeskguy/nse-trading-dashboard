@@ -128,6 +128,26 @@ async def razorpay_webhook(
 
     raw_body = await request.body()
 
+    # Idempotency: reject replayed events using SHA-256 of the raw body
+    event_id = hashlib.sha256(raw_body).hexdigest()
+    if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            from supabase import create_client
+            _sb = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+            # Parse event type early (before HMAC) for the idempotency row
+            _evt = json.loads(raw_body).get("event", "unknown") if raw_body else "unknown"
+            result = _sb.table("webhook_events").insert(
+                {"id": event_id, "event_type": _evt},
+                count="exact",
+            ).execute()
+            if result.count == 0:
+                # Row already existed (duplicate delivery) — ack immediately
+                return {"received": True, "duplicate": True}
+        except json.JSONDecodeError:
+            pass  # HMAC check below will reject malformed payloads
+        except Exception:
+            pass  # Table may not exist yet — fall through and process anyway
+
     # Verify HMAC-SHA256 signature
     if settings.RAZORPAY_WEBHOOK_SECRET:
         expected_sig = hmac.new(

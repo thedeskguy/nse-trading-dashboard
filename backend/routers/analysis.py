@@ -1,20 +1,24 @@
 import sys
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 
 from deps import verify_supabase_jwt
 from services.cache import cached, cache_clear
+from services.limiter import limiter
 from services.serializers import clean_dict
 
 router = APIRouter()
 
+_TICKER = Query(..., pattern=r"^[A-Z0-9.\-&]{1,30}$", description="Ticker e.g. RELIANCE.NS")
+_PERIOD  = Query("1y", pattern=r"^(1d|5d|1mo|3mo|6mo|1y|2y|5y|10y|ytd|max)$")
+
 
 @router.get("/analysis/fundamentals")
 async def get_fundamentals(
-    ticker: str = Query(..., description="Ticker symbol e.g. RELIANCE.NS"),
+    ticker: str = _TICKER,
     user: dict = Depends(verify_supabase_jwt),
 ):
     """Fetch fundamental analysis data for a ticker (screener.in + yfinance)."""
@@ -46,9 +50,11 @@ async def get_fundamentals(
 
 
 @router.get("/analysis/ml-predict")
+@limiter.limit("5/minute")
 async def get_ml_prediction(
-    ticker: str = Query(..., description="Ticker symbol e.g. RELIANCE.NS"),
-    period: str = Query("1y", description="Training data period e.g. 1y, 2y"),
+    request: Request,
+    ticker: str = _TICKER,
+    period: str = _PERIOD,
     user: dict = Depends(verify_supabase_jwt),
 ):
     """Run ML model to predict next-day price direction for a ticker."""

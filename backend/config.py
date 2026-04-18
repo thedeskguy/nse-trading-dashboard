@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # Set to "1" only in local dev when SUPABASE_URL is intentionally absent.
     # Never set in production — a misconfigured deploy would auth any well-formed token.
     ALLOW_UNVERIFIED_JWT: str = "0"
+    SENTRY_DSN: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

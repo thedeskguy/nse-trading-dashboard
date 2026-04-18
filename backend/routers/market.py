@@ -2,13 +2,20 @@ import sys
 import os
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from typing import Annotated
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 
 from deps import verify_supabase_jwt
 from services.cache import cached
+from services.limiter import limiter
 from services.serializers import df_to_records
+
+# Validated query-param types
+_TICKER = Query(..., pattern=r"^[A-Z0-9.\-&]{1,30}$", description="Ticker e.g. RELIANCE.NS")
+_INTERVAL = Query("1d", pattern=r"^(1m|2m|5m|15m|30m|60m|90m|1h|1d|5d|1wk|1mo|3mo)$")
+_PERIOD  = Query("3mo", pattern=r"^(1d|5d|1mo|3mo|6mo|1y|2y|5y|10y|ytd|max)$")
 
 router = APIRouter()
 
@@ -106,10 +113,12 @@ async def get_indices(user: dict = Depends(verify_supabase_jwt)):
 
 
 @router.get("/market/ohlcv")
+@limiter.limit("30/minute")
 async def get_ohlcv(
-    ticker: str = Query(..., description="Ticker symbol e.g. RELIANCE.NS"),
-    interval: str = Query("1d", description="Candle interval e.g. 1d, 1h, 15m"),
-    period: str = Query("3mo", description="Lookback period e.g. 3mo, 1y"),
+    request: Request,
+    ticker: str = _TICKER,
+    interval: str = _INTERVAL,
+    period: str = _PERIOD,
     with_indicators: bool = Query(False, description="Include EMA/Bollinger overlay series"),
     user: dict = Depends(verify_supabase_jwt),
 ):
@@ -203,7 +212,7 @@ async def search_stocks(
 
 @router.get("/market/company-info")
 async def get_company_info(
-    ticker: str = Query(..., description="Ticker e.g. RELIANCE.NS"),
+    ticker: str = _TICKER,
     user: dict = Depends(verify_supabase_jwt),
 ):
     """Return company display name for a ticker.
@@ -238,10 +247,12 @@ async def get_company_info(
 
 
 @router.get("/market/signal")
+@limiter.limit("30/minute")
 async def get_signal(
-    ticker: str = Query(..., description="Ticker symbol e.g. RELIANCE.NS"),
-    interval: str = Query("1d", description="Candle interval"),
-    period: str = Query("3mo", description="Lookback period"),
+    request: Request,
+    ticker: str = _TICKER,
+    interval: str = _INTERVAL,
+    period: str = _PERIOD,
     user: dict = Depends(verify_supabase_jwt),
 ):
     """Compute buy/sell/hold signal for a ticker using technical indicators."""
@@ -265,7 +276,8 @@ async def get_signal(
 
 
 @router.get("/market/scan")
-async def scan_nifty50(user: dict = Depends(verify_supabase_jwt)):
+@limiter.limit("5/minute")
+async def scan_nifty50(request: Request, user: dict = Depends(verify_supabase_jwt)):
     """Batch technical signal scan for all Nifty 50 stocks. Cached 10 min."""
     cache_key = "scan:nifty50"
 
