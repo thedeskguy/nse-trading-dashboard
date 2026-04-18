@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     UPSTASH_REDIS_REST_URL: Optional[str] = None
     UPSTASH_REDIS_REST_TOKEN: Optional[str] = None
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    # Set to "1" only in local dev when SUPABASE_URL is intentionally absent.
+    # Never set in production — a misconfigured deploy would auth any well-formed token.
+    ALLOW_UNVERIFIED_JWT: str = "0"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

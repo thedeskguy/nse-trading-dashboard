@@ -1,10 +1,4 @@
-"""
-FastAPI dependencies for authentication.
-
-TODO: Full RS256 JWKS verification is implemented below.
-      For production, ensure SUPABASE_URL is set in environment.
-      If not set, falls back to unverified decode (dev mode only).
-"""
+"""FastAPI dependencies for authentication."""
 import time
 import base64
 import json
@@ -47,12 +41,11 @@ async def _get_jwks() -> Optional[dict]:
 
 
 def _decode_unverified(token: str) -> dict:
-    """Base64-decode the JWT payload without signature verification (dev/fallback mode)."""
+    """Base64-decode the JWT payload without signature verification."""
     try:
         parts = token.split(".")
         if len(parts) != 3:
             raise ValueError("Invalid JWT structure")
-        # Add padding if needed
         payload_b64 = parts[1] + "=" * (-len(parts[1]) % 4)
         payload = json.loads(base64.urlsafe_b64decode(payload_b64))
         return payload
@@ -66,9 +59,9 @@ async def verify_supabase_jwt(
     """
     Verify a Supabase JWT from the Authorization header.
 
-    - Fetches JWKS from Supabase and verifies RS256 signature.
-    - Falls back to unverified decode if SUPABASE_URL is not configured (dev mode).
-    - Returns {"user_id": str, "email": str}
+    Fetches JWKS from Supabase and verifies RS256/ES256 signature.
+    Falls back to unverified decode ONLY when ALLOW_UNVERIFIED_JWT=1 is
+    explicitly set — never silently in production.
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
@@ -81,7 +74,16 @@ async def verify_supabase_jwt(
     jwks = await _get_jwks()
 
     if jwks is None:
-        # Dev mode: no SUPABASE_URL configured — skip signature verification
+        settings = get_settings()
+        if settings.ALLOW_UNVERIFIED_JWT != "1":
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "JWKS unavailable: SUPABASE_URL is not configured or the JWKS endpoint "
+                    "could not be reached. Set ALLOW_UNVERIFIED_JWT=1 only for local dev."
+                ),
+            )
+        # Dev mode explicitly opted in — skip signature verification
         payload = _decode_unverified(token)
     else:
         try:
