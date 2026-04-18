@@ -86,8 +86,8 @@ export default function HomePage() {
             {
               title: "Options Chain",
               desc: "Real-time OI data for NIFTY, BANKNIFTY, MIDCPNIFTY. PCR, Max Pain, and curated trade recommendations.",
-              accent: "text-primary",
-              dot: "bg-primary",
+              accent: "text-blue-400",
+              dot: "bg-blue-400",
             },
             {
               title: "ML Predictions",
@@ -117,12 +117,12 @@ export default function HomePage() {
         <div className="flex flex-col md:flex-row gap-6">
           {/* Monthly */}
           <div className="glass rounded-2xl p-8 flex-1 text-left">
-            <div className="text-white/40 text-xs uppercase tracking-widest mb-3">Monthly</div>
+            <div className="text-white/60 text-xs uppercase tracking-widest mb-3">Monthly</div>
             <div className="text-5xl font-bold mb-1 text-white">
               ₹499
               <span className="text-xl text-white/35 font-normal">/mo</span>
             </div>
-            <p className="text-white/40 text-sm mb-8">Full access. Billed monthly.</p>
+            <p className="text-white/55 text-sm mb-8">Full access. Billed monthly.</p>
             <Link href="/signup">
               <Button className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl">
                 Start Free Trial
@@ -137,12 +137,12 @@ export default function HomePage() {
                 Best Value
               </Badge>
             </div>
-            <div className="text-primary/70 text-xs uppercase tracking-widest mb-3">Annual</div>
+            <div className="text-blue-400/90 text-xs uppercase tracking-widest mb-3">Annual</div>
             <div className="text-5xl font-bold mb-1 text-white">
               ₹3,999
               <span className="text-xl text-white/35 font-normal">/yr</span>
             </div>
-            <p className="text-white/40 text-sm mb-8">Save 33% vs monthly.</p>
+            <p className="text-white/55 text-sm mb-8">Save 33% vs monthly.</p>
             <Link href="/signup">
               <Button className="w-full bg-primary hover:bg-primary/90 rounded-xl">
                 Start Free Trial

@@ -189,7 +189,7 @@ function TickerDashboard({ ticker }: { ticker: string }) {
 
       {/* 52-Week Range */}
       {high52w != null && low52w != null && signal?.last_price != null && (
-        <div className="bg-card border border-border rounded-2xl px-4 py-3 flex items-center gap-4">
+        <div className="bg-card border border-border rounded-2xl px-4 py-3 flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-1.5 text-sm">
             <ArrowDown size={13} className="text-sell" />
             <span className="text-muted-foreground text-xs">52W Low</span>

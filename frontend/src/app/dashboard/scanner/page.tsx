@@ -118,7 +118,7 @@ export default function ScannerPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden overflow-x-auto">
         {isError ? (
           <div className="py-20 flex flex-col items-center gap-3 text-muted-foreground">
             <AlertCircle size={32} className="opacity-30" />
