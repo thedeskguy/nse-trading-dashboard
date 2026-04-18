@@ -1,17 +1,18 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { useOptionsChain, useOptionsRecommend } from "@/lib/api/options";
 import { DataFreshness } from "@/components/ui/DataFreshness";
-import { PCRCard } from "@/components/options/PCRCard";
 import { TradeCard } from "@/components/options/TradeCard";
 import { OITornadoChart } from "@/components/options/OITornadoChart";
 import { OptionsChainTable } from "@/components/options/OptionsChainTable";
 import { PayoffChart } from "@/components/options/PayoffChart";
+import { StatsStrip } from "@/components/options/StatsStrip";
 
 const SYMBOLS = ["NIFTY", "BANKNIFTY", "MIDCPNIFTY"] as const;
 type Symbol = typeof SYMBOLS[number];
@@ -22,17 +23,26 @@ const LOT_SIZES: Record<Symbol, number> = {
   MIDCPNIFTY: 75,
 };
 
-function ErrorCard() {
+function OfflineBanner({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="bg-card border border-border rounded-2xl h-64 flex flex-col items-center justify-center gap-2 text-muted-foreground text-sm">
-      <AlertCircle size={18} className="opacity-40" />
-      <span>Data unavailable</span>
+    <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-sell/20 bg-sell/5 text-sm">
+      <span className="text-sell text-xs font-medium">
+        ⚡ Backend is cold-starting — first response takes ~30s on the free tier
+      </span>
+      <button
+        onClick={onRetry}
+        className="flex items-center gap-1.5 text-xs font-semibold text-sell hover:text-sell/80 transition-colors shrink-0"
+      >
+        <RefreshCw size={12} />
+        Retry
+      </button>
     </div>
   );
 }
 
 function OptionsDashboard({ symbol }: { symbol: Symbol }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [expiry, setExpiry] = useState<string | undefined>(undefined);
 
   const { data: chainData, isLoading: chainLoading, dataUpdatedAt: chainUpdatedAt } = useOptionsChain(symbol, expiry);
@@ -41,7 +51,6 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
 
   const spot = recData?.spot ?? chainData?.underlying_value ?? null;
   const expiries = recData?.expiry_dates ?? chainData?.expiry_dates ?? [];
-  const timestamp = recData?.timestamp ?? chainData?.timestamp;
   const isLoadingAny = chainLoading || recLoading;
 
   const signalColor =
@@ -89,6 +98,14 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
         <DataFreshness updatedAt={dataUpdatedAt} className="ml-auto" />
       </div>
 
+      {/* Offline banner — only shown on error */}
+      {recError && (
+        <OfflineBanner onRetry={() => {
+          queryClient.invalidateQueries({ queryKey: ["options-recommend", symbol] });
+          queryClient.invalidateQueries({ queryKey: ["options-chain", symbol] });
+        }} />
+      )}
+
       {/* Expiry picker */}
       <div className="flex flex-wrap gap-1.5 min-h-7">
         {isLoadingAny && expiries.length === 0
@@ -110,11 +127,22 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
             ))}
       </div>
 
-      {/* Recommendations + PCR row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Stats strip — shown only when data available */}
+      {recData && (
+        <StatsStrip data={recData} chain={chainData?.chain} />
+      )}
+      {(recLoading || chainLoading) && !recData && (
+        <div className="flex gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-24 rounded-xl" />
+          ))}
+        </div>
+      )}
+
+      {/* Recommendations — 2 columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {recLoading ? (
           <>
-            <Skeleton className="h-64 rounded-2xl" />
             <Skeleton className="h-64 rounded-2xl" />
             <Skeleton className="h-64 rounded-2xl" />
           </>
@@ -122,13 +150,17 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
           <>
             <TradeCard data={recData} style="intraday" />
             <TradeCard data={recData} style="positional" />
-            <PCRCard data={recData} />
           </>
         ) : (
           <>
-            <ErrorCard />
-            <ErrorCard />
-            <ErrorCard />
+            <div className="bg-card border border-border rounded-2xl h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground text-sm">
+              <AlertCircle size={18} className="opacity-40" />
+              <span>Trade data unavailable</span>
+            </div>
+            <div className="bg-card border border-border rounded-2xl h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground text-sm">
+              <AlertCircle size={18} className="opacity-40" />
+              <span>Trade data unavailable</span>
+            </div>
           </>
         )}
       </div>
