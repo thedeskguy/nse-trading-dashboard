@@ -111,13 +111,14 @@ Captured from a full-stack audit (2026-04-17). Tackle in priority order whenever
 - [x] **Decide if backend JWT verification should consult `user_sessions`.** Client-side kick (Phase 7) is sufficient. Server-side enforcement would add a DB query to every API request for a marginal gain (1-hour JWT expiry window). Left as-is.
 
 ### P2 — nice-to-haves
-- [ ] Add `backend/tests/` with FastAPI `TestClient` router tests (CI runs `pytest` but the dir doesn't exist).
-- [ ] Add `mypy` to CI for the payments codebase.
+- [x] Add `backend/tests/` with FastAPI `TestClient` router tests (10 tests: health, market status, input validation, auth guard, payments, webhook).
+- [x] Add `mypy` to CI for the payments codebase (`mypy routers/payments.py --ignore-missing-imports`).
+- [x] Show "data from N minutes ago" staleness indicators in the dashboard UI (`DataFreshness` component on scanner, options, stock pages).
+- [x] Drop unused Alpha Vantage slot in `backend/config.py` — was never added; confirmed absent.
+- [x] **Free beta launch**: PaywallGate bypassed (pass-through), settings page updated, landing page pricing replaced with free beta card.
 - [ ] WebSocket live quotes via Angel One's feed (replace polling).
-- [ ] Show "data from N minutes ago" staleness indicators in the dashboard UI.
 - [ ] Document (or refactor) the `threading.Lock` in `backend/services/angel_session.py` inside an async app.
 - [ ] Verify Vercel prod sets `NEXT_PUBLIC_API_URL` — default is `http://localhost:8000`.
-- [ ] Drop unused Alpha Vantage slot in `backend/config.py`.
 - [ ] Add a circuit-breaker around yfinance for 429 storms.
 
 ### Open questions (answer before starting the P0/P1 work)

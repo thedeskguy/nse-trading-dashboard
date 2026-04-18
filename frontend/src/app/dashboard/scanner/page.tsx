@@ -5,6 +5,7 @@ import { useScanner, type ScanResult } from "@/lib/api/scanner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus, ArrowUpDown, RefreshCw, AlertCircle } from "lucide-react";
+import { DataFreshness } from "@/components/ui/DataFreshness";
 
 type SignalFilter = "ALL" | "BUY" | "HOLD" | "SELL";
 type SortKey = "confidence" | "name" | "last_price" | "change_pct";
@@ -70,19 +71,15 @@ export default function ScannerPage() {
     else { setSortKey(key); setSortAsc(false); }
   };
 
-  const lastUpdated = dataUpdatedAt
-    ? new Date(dataUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
-    : null;
-
   return (
     <div className="space-y-5 max-w-6xl">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">Scanner</h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2">
             Nifty 50 batch signal scan · 10-min cache
-            {lastUpdated && <span className="ml-2 text-muted-foreground/50">updated {lastUpdated}</span>}
+            <DataFreshness updatedAt={dataUpdatedAt} />
           </p>
         </div>
         <button

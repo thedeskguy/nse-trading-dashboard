@@ -24,6 +24,7 @@ import { useSignal, useOHLCV, useCompanyInfo } from "@/lib/api/market";
 import { useFundamentals, useMLPredict } from "@/lib/api/analysis";
 import { INTRADAY, type Interval, type Period } from "@/lib/chartRanges";
 import { AlertCircle, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
+import { DataFreshness } from "@/components/ui/DataFreshness";
 
 function ErrorCard({ className }: { className?: string }) {
   return (
@@ -77,7 +78,7 @@ function TickerDashboard({ ticker }: { ticker: string }) {
   const signalPeriod: Period = INTRADAY.has(interval) ? period : "6mo";
   const signalInterval: Interval = INTRADAY.has(interval) ? interval : "1d";
 
-  const { data: signal, isLoading: signalLoading, isError: signalError, isFetching: signalFetching } =
+  const { data: signal, isLoading: signalLoading, isError: signalError, isFetching: signalFetching, dataUpdatedAt: signalUpdatedAt } =
     useSignal(ticker, signalInterval, signalPeriod);
   const { data: ohlcv, isLoading: ohlcvLoading, isError: ohlcvError } = useOHLCV(
     ticker,
@@ -159,9 +160,10 @@ function TickerDashboard({ ticker }: { ticker: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold">{displayName}</h1>
-          <span className="block text-muted-foreground text-sm mt-0.5">
-            <span className="text-muted-foreground/50 mr-2">{ticker}</span>
+          <span className="flex items-center gap-2 flex-wrap text-muted-foreground text-sm mt-0.5">
+            <span className="text-muted-foreground/50">{ticker}</span>
             {priceLabel ?? <Skeleton className="w-24 h-4 inline-block" />}
+            <DataFreshness updatedAt={signalUpdatedAt} />
           </span>
         </div>
         <div>

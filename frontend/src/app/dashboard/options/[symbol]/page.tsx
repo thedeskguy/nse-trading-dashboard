@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
 import { useOptionsChain, useOptionsRecommend } from "@/lib/api/options";
+import { DataFreshness } from "@/components/ui/DataFreshness";
 import { PCRCard } from "@/components/options/PCRCard";
 import { TradeCard } from "@/components/options/TradeCard";
 import { OITornadoChart } from "@/components/options/OITornadoChart";
@@ -28,8 +29,9 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
   const router = useRouter();
   const [expiry, setExpiry] = useState<string | undefined>(undefined);
 
-  const { data: chainData, isLoading: chainLoading } = useOptionsChain(symbol, expiry);
-  const { data: recData, isLoading: recLoading, isError: recError } = useOptionsRecommend(symbol, expiry);
+  const { data: chainData, isLoading: chainLoading, dataUpdatedAt: chainUpdatedAt } = useOptionsChain(symbol, expiry);
+  const { data: recData, isLoading: recLoading, isError: recError, dataUpdatedAt: recUpdatedAt } = useOptionsRecommend(symbol, expiry);
+  const dataUpdatedAt = recUpdatedAt || chainUpdatedAt;
 
   const spot = recData?.spot ?? chainData?.underlying_value ?? null;
   const expiries = recData?.expiry_dates ?? chainData?.expiry_dates ?? [];
@@ -78,9 +80,7 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
           )}
         </div>
 
-        {timestamp && (
-          <span className="text-xs text-muted-foreground ml-auto">Updated {timestamp}</span>
-        )}
+        <DataFreshness updatedAt={dataUpdatedAt} className="ml-auto" />
       </div>
 
       {/* Expiry picker */}

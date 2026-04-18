@@ -55,7 +55,7 @@ export default function HomePage() {
               size="lg"
               className="bg-primary hover:bg-primary/90 text-white h-12 px-8 rounded-full text-base font-medium"
             >
-              Start Free Trial
+              Get Started Free
             </Button>
           </Link>
           <Link href="/login">
@@ -108,47 +108,35 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-20 px-6 text-center max-w-3xl mx-auto">
+      {/* Pricing — free beta */}
+      <section id="pricing" className="py-20 px-6 text-center max-w-2xl mx-auto">
         <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white/90">
-          Simple Pricing
+          Free During Beta
         </h2>
-        <p className="text-white/50 mb-14 text-lg">No hidden fees. Cancel anytime.</p>
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* Monthly */}
-          <div className="glass rounded-2xl p-8 flex-1 text-left">
-            <div className="text-white/60 text-xs uppercase tracking-widest mb-3">Monthly</div>
-            <div className="text-5xl font-bold mb-1 text-white">
-              ₹499
-              <span className="text-xl text-white/35 font-normal">/mo</span>
-            </div>
-            <p className="text-white/55 text-sm mb-8">Full access. Billed monthly.</p>
-            <Link href="/signup">
-              <Button className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl">
-                Start Free Trial
-              </Button>
-            </Link>
+        <p className="text-white/50 mb-12 text-lg">
+          All features are available at no cost while we&apos;re in beta. No credit card required.
+        </p>
+        <div className="glass rounded-2xl p-10 text-left relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+          <Badge className="mb-6 bg-green-500/10 text-green-400 border-green-500/20 text-xs uppercase tracking-widest px-3 py-1">
+            Beta Access
+          </Badge>
+          <div className="text-6xl font-bold mb-2 text-white">
+            ₹0
+            <span className="text-2xl text-white/35 font-normal ml-1">/ forever (for now)</span>
           </div>
-
-          {/* Annual */}
-          <div className="relative rounded-2xl p-8 flex-1 text-left bg-primary/10 border border-primary/30">
-            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-              <Badge className="bg-primary text-white text-xs px-3 py-1 shadow-lg shadow-primary/30">
-                Best Value
-              </Badge>
-            </div>
-            <div className="text-blue-400/90 text-xs uppercase tracking-widest mb-3">Annual</div>
-            <div className="text-5xl font-bold mb-1 text-white">
-              ₹3,999
-              <span className="text-xl text-white/35 font-normal">/yr</span>
-            </div>
-            <p className="text-white/55 text-sm mb-8">Save 33% vs monthly.</p>
-            <Link href="/signup">
-              <Button className="w-full bg-primary hover:bg-primary/90 rounded-xl">
-                Start Free Trial
-              </Button>
-            </Link>
-          </div>
+          <p className="text-white/55 text-sm mb-8 max-w-sm">
+            Sign up and get full access to live options chain, OI analytics, ML predictions,
+            and the Nifty 50 scanner — completely free.
+          </p>
+          <Link href="/signup">
+            <Button
+              size="lg"
+              className="bg-primary hover:bg-primary/90 text-white h-12 px-8 rounded-full text-base font-medium"
+            >
+              Get Started Free
+            </Button>
+          </Link>
         </div>
       </section>
 
