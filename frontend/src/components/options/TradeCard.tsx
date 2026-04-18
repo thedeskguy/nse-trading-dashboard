@@ -48,12 +48,25 @@ export function TradeCard({ data, style }: Props) {
     <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</h3>
-        <span className={cn("flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border", dirBg, dirColor,
-          isCall ? "border-buy/20" : "border-sell/20"
-        )}>
-          <DirIcon size={10} />
-          Buy {rec.option_type}
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Confidence badge */}
+          <span className={cn(
+            "text-xs font-bold px-2 py-0.5 rounded-full",
+            data.confidence >= 60
+              ? "bg-buy/10 text-buy"
+              : data.confidence >= 40
+              ? "bg-hold/10 text-hold"
+              : "bg-sell/10 text-sell"
+          )}>
+            {data.confidence}%
+          </span>
+          <span className={cn("flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border", dirBg, dirColor,
+            isCall ? "border-buy/20" : "border-sell/20"
+          )}>
+            <DirIcon size={10} />
+            Buy {rec.option_type}
+          </span>
+        </div>
       </div>
 
       {/* Option name */}
@@ -75,6 +88,25 @@ export function TradeCard({ data, style }: Props) {
           </div>
         ))}
       </div>
+
+      {/* Risk:Reward visual bar */}
+      {rec.sl_pct > 0 && rec.target_pct > 0 && (() => {
+        const total = rec.sl_pct + rec.target_pct;
+        const riskW = Math.round((rec.sl_pct / total) * 100);
+        const rewardW = 100 - riskW;
+        const ratio = (rec.target_pct / rec.sl_pct).toFixed(1);
+        return (
+          <div>
+            <p className="text-[10px] text-muted-foreground mb-1.5">
+              Risk : Reward · 1 : {ratio}
+            </p>
+            <div className="flex gap-0.5 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-sell/60 rounded-l-full" style={{ width: `${riskW}%` }} />
+              <div className="bg-buy/60 rounded-r-full" style={{ width: `${rewardW}%` }} />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Capital + P&L */}
       <div className="grid grid-cols-2 gap-2">
