@@ -98,6 +98,7 @@ def cache_clear(key: str) -> None:
     _store.pop(key, None)
     if _use_redis():
         try:
-            asyncio.get_event_loop().create_task(_redis_del(key))
+            loop = asyncio.get_running_loop()
+            loop.create_task(_redis_del(key))
         except RuntimeError:
-            pass  # no running loop (e.g. called from sync context at import time)
+            pass  # no running loop — Redis eviction skipped, local already cleared

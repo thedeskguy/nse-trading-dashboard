@@ -10,6 +10,7 @@ from deps import verify_supabase_jwt
 from services.cache import cached
 from services.limiter import limiter
 from services.logger import get_logger
+from services.market_hours import adaptive_ttl
 from services.serializers import df_to_records, clean_dict
 
 log = get_logger(__name__)
@@ -36,7 +37,7 @@ async def get_options_chain(
         from tools.fetch_options_chain import fetch_options_chain
         import pandas as pd
 
-        result = await cached(cache_key, ttl=60, fn=lambda: fetch_options_chain(symbol, expiry))
+        result = await cached(cache_key, ttl=adaptive_ttl(60), fn=lambda: fetch_options_chain(symbol, expiry))
     except Exception as e:
         log.exception("Options chain fetch failed for %s: %s", symbol, e)
         raise HTTPException(status_code=503, detail=f"Market data temporarily unavailable: {e}")
@@ -72,7 +73,7 @@ async def get_options_recommendation(
 
         result = await cached(
             cache_key,
-            ttl=60,
+            ttl=adaptive_ttl(60),
             fn=lambda: recommend_option(symbol, style, expiry),
         )
     except Exception as e:

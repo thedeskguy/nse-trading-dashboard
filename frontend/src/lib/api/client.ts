@@ -40,7 +40,7 @@ export async function apiFetch<T>(path: string, params?: Record<string, string>)
   const doFetch = async (token: string | null) => {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    return fetch(url.toString(), { cache: "no-store", headers });
+    return fetch(url.toString(), { headers });
   };
 
   let token = await getToken();

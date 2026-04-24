@@ -7,11 +7,19 @@ with zero changes.
 """
 
 import time
+import threading
 import requests
 import pandas as pd
 from datetime import datetime
 
 from tools.angel_auth import get_session, reset_session
+
+# ── Tool-level result cache ────────────────────────────────────────────────────
+# Caches fetch_options_chain() results for 55s so the double-call inside
+# recommend_option() (near_expiry + next_expiry) doesn't hit Angel One twice.
+_chain_cache: dict = {}   # key -> (result, expires_at)
+_chain_lock = threading.Lock()
+_CHAIN_TTL = 55           # seconds
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -152,7 +160,7 @@ def _parse_bid_ask(depth: dict) -> tuple[float, float]:
 
 # ── Main public function ───────────────────────────────────────────────────────
 
-def fetch_options_chain(symbol: str, expiry: str = None) -> dict:
+def _fetch_options_chain_uncached(symbol: str, expiry: str = None) -> dict:
     """
     Fetch live options chain for an index symbol.
 
@@ -248,6 +256,20 @@ def fetch_options_chain(symbol: str, expiry: str = None) -> dict:
         "expiry_dates":     expiry_dates,
         "chain":            chain_df,
     }
+
+
+def fetch_options_chain(symbol: str, expiry: str = None) -> dict:
+    """Cached wrapper around _fetch_options_chain_uncached. TTL = 55s."""
+    key = f"{symbol}:{expiry or 'nearest'}"
+    now = time.time()
+    with _chain_lock:
+        entry = _chain_cache.get(key)
+        if entry is not None and entry[1] > now:
+            return entry[0]
+    result = _fetch_options_chain_uncached(symbol, expiry)
+    with _chain_lock:
+        _chain_cache[key] = (result, now + _CHAIN_TTL)
+    return result
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
