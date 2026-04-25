@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
+import pandas as pd
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 
@@ -57,6 +58,50 @@ def test_market_status(client):
     data = r.json()
     assert "is_open" in data
     assert isinstance(data["is_open"], bool)
+
+
+def test_market_indices_uses_bulk_fetch(client):
+    frames = {
+        "^NSEI": pd.DataFrame({"Close": [22000.0, 22110.0]}),
+        "^NSEBANK": pd.DataFrame({"Close": [48000.0, 47950.0]}),
+        "^BSESN": pd.DataFrame({"Close": [73000.0, 73200.0]}),
+    }
+
+    with patch("tools.fetch_stock_data.fetch_yfinance_bulk", return_value=frames):
+        r = client.get("/api/v1/market/indices")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["indices"]) == 3
+    assert body["indices"][0]["key"] == "NIFTY50"
+    assert body["indices"][0]["value"] == 22110.0
+
+
+def test_market_scan_uses_bulk_fetch(client):
+    frame = pd.DataFrame(
+        {
+            "Open": [100.0, 101.0, 102.0],
+            "High": [101.0, 102.0, 103.0],
+            "Low": [99.0, 100.0, 101.0],
+            "Close": [100.0, 102.0, 104.0],
+            "Volume": [1000, 1100, 1200],
+        }
+    )
+    frames = {ticker: frame for ticker in ["RELIANCE.NS", "INFY.NS"]}
+
+    with patch("routers.market.STOCK_LISTS", {"NIFTY50": [("RELIANCE.NS", "Reliance"), ("INFY.NS", "Infosys")]}):
+        with patch("tools.fetch_stock_data.fetch_yfinance_bulk", return_value=frames):
+            with patch("tools.compute_indicators.compute_all", side_effect=lambda df: df):
+                with patch(
+                    "tools.generate_signals.generate_signal",
+                    return_value={"signal": "BUY", "confidence": 82, "last_price": 104.0},
+                ):
+                    r = client.get("/api/v1/market/scan", params={"index": "NIFTY50"})
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == 2
+    assert all(stock["signal"] == "BUY" for stock in body["stocks"])
 
 
 # ---------------------------------------------------------------------------

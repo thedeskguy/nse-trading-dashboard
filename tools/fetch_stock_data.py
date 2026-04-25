@@ -97,6 +97,66 @@ def _fetch_yfinance(ticker: str, interval: str, period: str, auto_adjust: bool =
     return df
 
 
+def fetch_yfinance_bulk(
+    tickers: list[str],
+    interval: str = "1d",
+    period: str = "3mo",
+    auto_adjust: bool = True,
+) -> dict[str, pd.DataFrame]:
+    """Fetch multiple tickers in one yfinance request."""
+    if not tickers:
+        return {}
+
+    resolved = [resolve_ticker(ticker) for ticker in tickers]
+    raw = yf.download(
+        tickers=resolved,
+        period=period,
+        interval=interval,
+        auto_adjust=auto_adjust,
+        progress=False,
+        threads=True,
+        group_by="ticker",
+    )
+
+    if raw.empty:
+        raise ValueError("No data returned for bulk fetch.")
+
+    results: dict[str, pd.DataFrame] = {}
+    required_cols = ["Open", "High", "Low", "Close", "Volume"]
+
+    if isinstance(raw.columns, pd.MultiIndex):
+        for original, resolved_ticker in zip(tickers, resolved):
+            if resolved_ticker not in raw.columns.get_level_values(0):
+                continue
+            df = raw[resolved_ticker].copy()
+            if not set(required_cols).issubset(df.columns):
+                continue
+            df = df[required_cols]
+            if interval in ("1m", "5m", "15m", "30m", "1h"):
+                if df.index.tz is None:
+                    df.index = df.index.tz_localize("UTC")
+                df.index = df.index.tz_convert("Asia/Kolkata")
+            df = validate_dataframe(df)
+            if not df.empty:
+                results[original] = df
+    else:
+        df = raw.copy()
+        if set(required_cols).issubset(df.columns):
+            df = df[required_cols]
+            if interval in ("1m", "5m", "15m", "30m", "1h"):
+                if df.index.tz is None:
+                    df.index = df.index.tz_localize("UTC")
+                df.index = df.index.tz_convert("Asia/Kolkata")
+            df = validate_dataframe(df)
+            if not df.empty:
+                results[tickers[0]] = df
+
+    if not results:
+        raise ValueError("Bulk fetch returned no usable data.")
+
+    return results
+
+
 def fetch_ohlcv(
     ticker: str,
     interval: str = "1d",

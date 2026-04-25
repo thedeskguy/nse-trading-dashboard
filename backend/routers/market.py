@@ -404,33 +404,50 @@ async def get_market_status(user: dict = Depends(verify_supabase_jwt)):
 @router.get("/market/indices")
 async def get_indices(user: dict = Depends(verify_supabase_jwt)):
     """Return last price and day change % for major NSE/BSE indices."""
-    from tools.fetch_stock_data import _fetch_yfinance
+    cache_key = "indices:major"
 
-    result = []
-    for idx in _INDICES:
+    async def _fetch_indices():
+        from tools.fetch_stock_data import fetch_yfinance_bulk
+
         try:
-            df = await asyncio.to_thread(_fetch_yfinance, idx["ticker"], "1d", "5d")
-            if len(df) < 2:
-                raise ValueError("not enough rows")
-            prev_close = float(df["Close"].iloc[-2])
-            last_price = float(df["Close"].iloc[-1])
-            change_pct = ((last_price - prev_close) / prev_close) * 100
-            result.append({
-                "key": idx["key"],
-                "name": idx["name"],
-                "value": last_price,
-                "change_pct": round(change_pct, 2),
-                "up": change_pct >= 0,
-            })
+            frames = await asyncio.to_thread(
+                fetch_yfinance_bulk,
+                [idx["ticker"] for idx in _INDICES],
+                "1d",
+                "5d",
+            )
         except Exception as e:
-            log.exception("Failed to fetch index %s: %s", idx["ticker"], e)
-            result.append({
-                "key": idx["key"],
-                "name": idx["name"],
-                "value": None,
-                "change_pct": None,
-                "up": None,
-            })
+            log.exception("Bulk index fetch failed: %s", e)
+            frames = {}
+
+        result = []
+        for idx in _INDICES:
+            try:
+                df = frames[idx["ticker"]]
+                if len(df) < 2:
+                    raise ValueError("not enough rows")
+                prev_close = float(df["Close"].iloc[-2])
+                last_price = float(df["Close"].iloc[-1])
+                change_pct = ((last_price - prev_close) / prev_close) * 100
+                result.append({
+                    "key": idx["key"],
+                    "name": idx["name"],
+                    "value": last_price,
+                    "change_pct": round(change_pct, 2),
+                    "up": change_pct >= 0,
+                })
+            except Exception as e:
+                log.exception("Failed to fetch index %s: %s", idx["ticker"], e)
+                result.append({
+                    "key": idx["key"],
+                    "name": idx["name"],
+                    "value": None,
+                    "change_pct": None,
+                    "up": None,
+                })
+        return result
+
+    result = await cached(cache_key, ttl=adaptive_ttl(300), fn=_fetch_indices)
     return {"indices": result}
 
 
@@ -617,42 +634,47 @@ async def scan_stocks(
     cache_key = f"scan:{index.lower()}"
 
     async def _do_scan():
-        from tools.fetch_stock_data import fetch_ohlcv
+        from tools.fetch_stock_data import fetch_ohlcv, fetch_yfinance_bulk
         from tools.compute_indicators import compute_all
         from tools.generate_signals import generate_signal
 
-        # Use larger concurrency for bigger lists; keep yfinance load manageable
-        concurrency = 8 if len(stock_list) <= 100 else 12
-        sem = asyncio.Semaphore(concurrency)
+        bulk_frames: dict[str, object] = {}
+        bulk_tickers = [ticker for ticker, _ in stock_list]
+
+        try:
+            bulk_frames = await asyncio.to_thread(fetch_yfinance_bulk, bulk_tickers, "1d", "3mo")
+        except Exception as e:
+            log.warning("Bulk scan fetch failed for %s: %s", index, e)
 
         async def _scan_one(ticker: str, name: str):
-            async with sem:
-                try:
-                    def _compute():
+            try:
+                def _compute():
+                    df = bulk_frames.get(ticker)
+                    if df is None:
                         df = fetch_ohlcv(ticker, "1d", "3mo")
-                        change_pct = None
-                        if len(df) >= 2:
-                            prev = float(df["Close"].iloc[-2])
-                            last = float(df["Close"].iloc[-1])
-                            change_pct = round((last - prev) / prev * 100, 2)
-                        df = compute_all(df)
-                        sig = generate_signal(df)
-                        return {
-                            "ticker": ticker,
-                            "name": name,
-                            "signal": sig["signal"],
-                            "confidence": sig["confidence"],
-                            "last_price": sig["last_price"],
-                            "change_pct": change_pct,
-                        }
-                    return await asyncio.to_thread(_compute)
-                except Exception as e:
-                    log.exception("Scan failed for %s: %s", ticker, e)
+                    change_pct = None
+                    if len(df) >= 2:
+                        prev = float(df["Close"].iloc[-2])
+                        last = float(df["Close"].iloc[-1])
+                        change_pct = round((last - prev) / prev * 100, 2)
+                    df = compute_all(df)
+                    sig = generate_signal(df)
                     return {
-                        "ticker": ticker, "name": name,
-                        "signal": None, "confidence": None,
-                        "last_price": None, "change_pct": None,
+                        "ticker": ticker,
+                        "name": name,
+                        "signal": sig["signal"],
+                        "confidence": sig["confidence"],
+                        "last_price": sig["last_price"],
+                        "change_pct": change_pct,
                     }
+                return await asyncio.to_thread(_compute)
+            except Exception as e:
+                log.exception("Scan failed for %s: %s", ticker, e)
+                return {
+                    "ticker": ticker, "name": name,
+                    "signal": None, "confidence": None,
+                    "last_price": None, "change_pct": None,
+                }
 
         tasks = [_scan_one(t, n) for t, n in stock_list]
         return await asyncio.gather(*tasks)
