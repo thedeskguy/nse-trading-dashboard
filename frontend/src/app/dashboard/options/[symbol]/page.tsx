@@ -167,10 +167,10 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
 
       {/* OI Tornado + Chain + Payoff Tabs */}
       <Tabs defaultValue="tornado">
-        <TabsList className="bg-muted/50 rounded-xl w-full flex justify-center gap-8">
-          <TabsTrigger value="tornado" className="rounded-lg">OI Tornado</TabsTrigger>
-          <TabsTrigger value="chain" className="rounded-lg">Options Chain</TabsTrigger>
-          <TabsTrigger value="payoff" className="rounded-lg">Payoff Diagram</TabsTrigger>
+        <TabsList className="bg-muted/50 rounded-xl w-full flex justify-center gap-2 h-auto p-1">
+          <TabsTrigger value="tornado" className="rounded-lg px-4 py-2 text-xs">OI Tornado</TabsTrigger>
+          <TabsTrigger value="chain" className="rounded-lg px-4 py-2 text-xs">Options Chain</TabsTrigger>
+          <TabsTrigger value="payoff" className="rounded-lg px-4 py-2 text-xs">Payoff Diagram</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tornado" className="mt-4">
