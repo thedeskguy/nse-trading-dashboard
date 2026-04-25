@@ -739,9 +739,10 @@ async def ws_quote(
                         "price": round(last, 2),
                         "change_pct": change_pct,
                     })
+            except (WebSocketDisconnect, RuntimeError):
+                return
             except Exception as e:
                 log.warning("ws_quote fetch failed for %s: %s", ticker, e)
-                # Don't close — keep the connection alive and retry next interval
 
             await asyncio.sleep(interval_s)
     except WebSocketDisconnect:
