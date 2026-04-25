@@ -59,7 +59,9 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
     "bg-hold/10 text-hold border-hold/20";
 
   return (
-    <div className="space-y-5 max-w-6xl">
+    <div className="space-y-5">
+      {/* Header — constrained width */}
+      <div className="max-w-6xl space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Symbol switcher */}
@@ -164,6 +166,8 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
           </>
         )}
       </div>
+
+      </div>{/* end max-w-6xl */}
 
       {/* OI Tornado + Chain + Payoff Tabs */}
       <Tabs defaultValue="tornado">
