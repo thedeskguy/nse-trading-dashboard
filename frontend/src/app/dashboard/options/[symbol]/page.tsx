@@ -1,6 +1,6 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,6 +48,19 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
   const { data: chainData, isLoading: chainLoading, dataUpdatedAt: chainUpdatedAt } = useOptionsChain(symbol, expiry);
   const { data: recData, isLoading: recLoading, isError: recError, dataUpdatedAt: recUpdatedAt } = useOptionsRecommend(symbol, expiry);
   const dataUpdatedAt = recUpdatedAt || chainUpdatedAt;
+
+  // Only show cold-start banner if still loading after 8s — not on fast errors
+  const [slowLoading, setSlowLoading] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (recLoading) {
+      timerRef.current = setTimeout(() => setSlowLoading(true), 8000);
+    } else {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setSlowLoading(false);
+    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [recLoading]);
 
   const spot = recData?.spot ?? chainData?.underlying_value ?? null;
   const expiries = recData?.expiry_dates ?? chainData?.expiry_dates ?? [];
@@ -100,8 +113,8 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
         <DataFreshness updatedAt={dataUpdatedAt} className="ml-auto" />
       </div>
 
-      {/* Offline banner — only shown on error */}
-      {recError && (
+      {/* Cold-start banner — only shown when slow (>8s) or errored */}
+      {(slowLoading || recError) && (
         <OfflineBanner onRetry={() => {
           queryClient.invalidateQueries({ queryKey: ["options-recommend", symbol] });
           queryClient.invalidateQueries({ queryKey: ["options-chain", symbol] });
