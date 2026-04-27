@@ -170,7 +170,7 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
       </div>{/* end max-w-6xl */}
 
       {/* OI Tornado + Chain + Payoff Tabs */}
-      <Tabs defaultValue="tornado">
+      <Tabs defaultValue="tornado" className="flex-col">
         <div className="flex justify-center">
           <TabsList className="bg-muted/50 rounded-xl h-auto p-1">
             <TabsTrigger value="tornado" className="rounded-lg px-4 py-1.5 text-xs">OI Tornado</TabsTrigger>
