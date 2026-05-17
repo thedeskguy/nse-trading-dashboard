@@ -28,12 +28,12 @@ export function MobileNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors min-w-0",
+                "flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl transition-colors min-w-0 min-h-[44px] justify-center",
                 isActive ? "text-primary" : "text-muted-foreground"
               )}
             >
               <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.75} />
-              <span className="text-[10px] font-medium leading-none">{item.label}</span>
+              <span className="text-[11px] font-medium leading-none">{item.label}</span>
             </Link>
           );
         })}

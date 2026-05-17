@@ -71,9 +71,9 @@ export function StatsStrip({ data, chain }: Props) {
       {chips.map(({ label, value, color }) => (
         <div
           key={label}
-          className="bg-card border border-border rounded-xl px-3 py-2 min-w-0"
+          className="bg-card border border-border rounded-xl px-3 py-2.5 min-w-[4.5rem]"
         >
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-0.5">
+          <div className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-0.5">
             {label}
           </div>
           <div className={`font-mono text-sm font-semibold tabular-nums ${color}`}>

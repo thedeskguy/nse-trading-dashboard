@@ -91,7 +91,8 @@ export function ConfluenceGrid({ data }: Props) {
       </div>
 
       {/* Heatmap grid */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden overflow-x-auto">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[480px]">
           <thead>
             <tr className="border-b border-border text-xs text-muted-foreground bg-muted/30">
@@ -140,6 +141,7 @@ export function ConfluenceGrid({ data }: Props) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
