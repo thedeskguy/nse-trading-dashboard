@@ -136,7 +136,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Indices */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {indicesLoading
           ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)
           : (indicesData?.indices ?? [
@@ -165,7 +165,7 @@ export default function DashboardPage() {
         </div>
 
         {scanLoading ? (
-          <div className="grid md:grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-2 gap-3">
             {Array.from({ length: 2 }).map((_, i) => (
               <div key={i} className="bg-card border border-border rounded-2xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-border">
@@ -192,7 +192,7 @@ export default function DashboardPage() {
             No data yet — scanner runs every 10 minutes
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-2 gap-3">
             {/* Gainers */}
             <div className="bg-card border border-border rounded-2xl overflow-hidden">
               <div className="px-4 py-3 border-b border-border flex items-center gap-2">

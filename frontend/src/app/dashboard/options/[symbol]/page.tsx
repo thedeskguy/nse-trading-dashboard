@@ -122,16 +122,16 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
       )}
 
       {/* Expiry picker */}
-      <div className="flex flex-wrap gap-1.5 min-h-7">
+      <div className="flex flex-wrap gap-1.5">
         {isLoadingAny && expiries.length === 0
           ? Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="w-20 h-7 rounded-lg" />
+              <Skeleton key={i} className="w-20 h-9 rounded-lg" />
             ))
           : expiries.slice(0, 8).map((exp) => (
               <button
                 key={exp}
                 onClick={() => setExpiry(exp === expiries[0] && !expiry ? undefined : exp)}
-                className={`px-2.5 py-1 text-[11px] font-mono rounded-lg transition-colors ${
+                className={`px-3 py-2 text-[11px] font-mono rounded-lg transition-colors min-h-[36px] ${
                   (expiry === exp) || (!expiry && exp === expiries[0])
                     ? "bg-primary/15 text-primary border border-primary/30"
                     : "bg-muted text-muted-foreground hover:text-foreground"

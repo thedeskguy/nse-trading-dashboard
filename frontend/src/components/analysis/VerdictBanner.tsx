@@ -27,20 +27,20 @@ export function VerdictBanner({ verdict, headline, sublabel, score }: Props) {
   const c = cfg[verdict];
   const Icon = c.icon;
   return (
-    <div className={cn("flex items-center gap-4 rounded-2xl border p-4", c.bg, c.border)}>
-      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", c.bg)}>
-        <Icon className={c.color} size={22} />
+    <div className={cn("flex items-start gap-3 rounded-2xl border p-4", c.bg, c.border)}>
+      <div className={cn("w-10 h-10 shrink-0 rounded-xl flex items-center justify-center", c.bg)}>
+        <Icon className={c.color} size={20} />
       </div>
       <div className="flex-1 min-w-0">
         <p className={cn("text-xs uppercase tracking-wider font-semibold", c.color)}>
           {c.label} Outlook
         </p>
-        <p className="text-base font-semibold truncate">{headline}</p>
-        {sublabel && <p className="text-xs text-muted-foreground truncate">{sublabel}</p>}
+        <p className="text-base font-semibold leading-snug break-words">{headline}</p>
+        {sublabel && <p className="text-xs text-muted-foreground mt-0.5">{sublabel}</p>}
       </div>
       {score != null && (
-        <div className="text-right">
-          <p className={cn("text-2xl font-bold font-mono tabular-nums", c.color)}>{Math.round(score)}</p>
+        <div className="text-right shrink-0">
+          <p className={cn("text-xl font-bold font-mono tabular-nums", c.color)}>{Math.round(score)}</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">/ 100</p>
         </div>
       )}
