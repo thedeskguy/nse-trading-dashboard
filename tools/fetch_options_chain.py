@@ -104,18 +104,31 @@ def _get_sorted_expiries(tokens: list[dict]) -> list[str]:
 
 
 def _get_spot(symbol: str) -> float:
-    """Get live index spot price via Angel One ltpData."""
+    """Get live index spot price via Angel One ltpData. Retries once on session failure."""
     spot_tokens = {
         "NIFTY":      ("NSE", "Nifty 50",          "99926000"),
         "BANKNIFTY":  ("NSE", "Nifty Bank",         "99926009"),
         "MIDCPNIFTY": ("NSE", "NIFTY MID SELECT",   "99926074"),
     }
     exch, name, token = spot_tokens.get(symbol, ("NSE", "Nifty 50", "99926000"))
-    obj = get_session()
-    resp = obj.ltpData(exch, name, token)
-    if resp and resp.get("status") and resp.get("data"):
-        return float(resp["data"]["ltp"])
-    raise ValueError(f"Could not fetch spot price for {symbol}: {resp}")
+    for attempt in range(2):
+        try:
+            obj = get_session()
+            resp = obj.ltpData(exch, name, token)
+            if resp and resp.get("status") and resp.get("data"):
+                return float(resp["data"]["ltp"])
+            if attempt == 0:
+                reset_session()
+                continue
+            raise ValueError(f"Could not fetch spot price for {symbol}: {resp}")
+        except ValueError:
+            raise
+        except Exception as e:
+            if attempt == 0:
+                reset_session()
+                continue
+            raise ValueError(f"Could not fetch spot price for {symbol}: {e}") from e
+    raise ValueError(f"Could not fetch spot price for {symbol} after retry")
 
 
 def _get_market_data(tokens: list[str]) -> dict:

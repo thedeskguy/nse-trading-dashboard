@@ -34,6 +34,11 @@ async def _warm_once() -> None:
                 )
             except Exception as e:
                 print(f"Cache warm-up warning [{sym}]: {e}")
+                try:
+                    from tools.angel_auth import reset_session
+                    reset_session()
+                except Exception:
+                    pass
     except Exception as e:
         print(f"Cache warm-up error: {e}")
 
