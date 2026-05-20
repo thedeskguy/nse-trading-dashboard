@@ -68,3 +68,62 @@ describe('computeBB', () => {
     })
   })
 })
+
+import {
+  computeATR, computeStochastic, computeADX,
+  computeOBV, computeVWAP, computeSupertrend, computeVolumeProfile
+} from '@/components/trading-chart/lib/computeIndicators'
+
+describe('computeATR', () => {
+  it('returns empty for fewer candles than period', () => {
+    expect(computeATR(makeCandles(5), 14)).toHaveLength(0)
+  })
+  it('all values are positive', () => {
+    computeATR(makeCandles(50), 14).forEach(p => expect(p.value).toBeGreaterThan(0))
+  })
+})
+
+describe('computeStochastic', () => {
+  it('k and d arrays have equal length', () => {
+    const result = computeStochastic(makeCandles(50), 14, 3)
+    expect(result.k.length).toBe(result.d.length)
+  })
+  it('k values are between 0 and 100', () => {
+    computeStochastic(makeCandles(50), 14, 3).k.forEach(p => {
+      expect(p.value).toBeGreaterThanOrEqual(0)
+      expect(p.value).toBeLessThanOrEqual(100)
+    })
+  })
+})
+
+describe('computeOBV', () => {
+  it('returns candles.length - 1 points', () => {
+    expect(computeOBV(makeCandles(20))).toHaveLength(19)
+  })
+})
+
+describe('computeVWAP', () => {
+  it('returns candles.length points', () => {
+    expect(computeVWAP(makeCandles(20))).toHaveLength(20)
+  })
+  it('vwap values are positive', () => {
+    computeVWAP(makeCandles(20)).forEach(p => expect(p.value).toBeGreaterThan(0))
+  })
+})
+
+describe('computeSupertrend', () => {
+  it('values length equals bullish length', () => {
+    const result = computeSupertrend(makeCandles(50), 10, 3)
+    expect(result.values.length).toBeGreaterThan(0)
+    expect(result.values.length).toBe(result.bullish.length)
+  })
+})
+
+describe('computeVolumeProfile', () => {
+  it('returns exactly bins bars', () => {
+    expect(computeVolumeProfile(makeCandles(50), 10)).toHaveLength(10)
+  })
+  it('all volumes are non-negative', () => {
+    computeVolumeProfile(makeCandles(50), 10).forEach(b => expect(b.volume).toBeGreaterThanOrEqual(0))
+  })
+})
