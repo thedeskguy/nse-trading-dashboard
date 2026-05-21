@@ -25,6 +25,7 @@ interface SubChartPaneProps {
   height: number
   onRemove: (instanceId: string) => void
   onChartReady?: (chart: IChartApi) => void
+  onChartRemove?: (chart: IChartApi) => void
 }
 
 const COLORS = {
@@ -42,7 +43,7 @@ const COLORS = {
   obv: '#00bcd4',
 }
 
-export function SubChartPane({ indicator, candles, height, onRemove, onChartReady }: SubChartPaneProps) {
+export function SubChartPane({ indicator, candles, height, onRemove, onChartReady, onChartRemove }: SubChartPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
 
@@ -183,6 +184,7 @@ export function SubChartPane({ indicator, candles, height, onRemove, onChartRead
 
     return () => {
       ro.disconnect()
+      onChartRemove?.(chart)
       chart.remove()
       chartRef.current = null
     }

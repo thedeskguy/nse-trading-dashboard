@@ -40,7 +40,7 @@ export function TradingChart({ ticker }: TradingChartProps) {
     panelIndicators,
     canAddPanel,
   } = useIndicators()
-  const { registerChart } = useChartSync()
+  const { registerChart, unregisterChart } = useChartSync()
 
   const { data: companyInfo } = useCompanyInfo(ticker)
 
@@ -65,6 +65,7 @@ export function TradingChart({ ticker }: TradingChartProps) {
             overlayIndicators={overlayIndicators}
             onScrollLeft={loadFullHistory}
             onChartReady={registerChart}
+            onChartRemove={unregisterChart}
           />
 
           {panelIndicators.map(ind => (
@@ -75,6 +76,7 @@ export function TradingChart({ ticker }: TradingChartProps) {
               height={120}
               onRemove={removeIndicator}
               onChartReady={registerChart}
+              onChartRemove={unregisterChart}
             />
           ))}
         </>

@@ -22,6 +22,7 @@ interface ChartCoreProps {
   height?: number
   onScrollLeft?: () => void
   onChartReady?: (chart: IChartApi) => void
+  onChartRemove?: (chart: IChartApi) => void
 }
 
 function emaColor(period: number): string {
@@ -42,6 +43,7 @@ export function ChartCore({
   height = 500,
   onScrollLeft,
   onChartReady,
+  onChartRemove,
 }: ChartCoreProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -218,6 +220,7 @@ export function ChartCore({
 
     return () => {
       ro.disconnect()
+      onChartRemove?.(chart)
       chart.remove()
       chartRef.current = null
     }

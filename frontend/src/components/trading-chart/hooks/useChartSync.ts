@@ -13,9 +13,14 @@ export function useChartSync() {
     chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
       if (isSyncing.current || !range) return
       isSyncing.current = true
-      charts.current.forEach(other => {
-        if (other === chart) return
-        other.timeScale().setVisibleLogicalRange(range)
+      charts.current = charts.current.filter(c => {
+        if (c === chart) return true
+        try {
+          c.timeScale().setVisibleLogicalRange(range)
+          return true
+        } catch {
+          return false // disposed — drop it
+        }
       })
       isSyncing.current = false
     })
