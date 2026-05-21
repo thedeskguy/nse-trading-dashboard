@@ -1,7 +1,7 @@
 // frontend/src/components/trading-chart/lib/computeIndicators.ts
 import type { Candle, LinePoint, HistPoint, MACDResult, BBResult, StochasticResult, SupertrendResult, VolumeProfileBar } from './types'
 
-function toTime(timestamp: string): string { return timestamp }
+function toTime(timestamp: string): string { return timestamp.slice(0, 10) }
 
 // ── EMA ──────────────────────────────────────────────────────────────────────
 export function computeEMA(candles: Candle[], period: number): LinePoint[] {

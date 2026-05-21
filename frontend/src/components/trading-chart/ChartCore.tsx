@@ -90,7 +90,7 @@ export function ChartCore({
 
     candleSeries.setData(
       candles.map(c => ({
-        time: c.timestamp,
+        time: c.timestamp.slice(0, 10) as any,
         open: c.open,
         high: c.high,
         low: c.low,
@@ -105,7 +105,7 @@ export function ChartCore({
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
     const fromStr = sixMonthsAgo.toISOString().slice(0, 10)
     try {
-      chart.timeScale().setVisibleRange({ from: fromStr as import('lightweight-charts').Time, to: lastCandle.timestamp as import('lightweight-charts').Time })
+      chart.timeScale().setVisibleRange({ from: fromStr as import('lightweight-charts').Time, to: lastCandle.timestamp.slice(0, 10) as import('lightweight-charts').Time })
     } catch {
       chart.timeScale().fitContent()
     }
