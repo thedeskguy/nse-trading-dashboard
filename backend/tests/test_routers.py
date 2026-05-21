@@ -18,8 +18,8 @@ for mod in ["sentry_sdk", "razorpay"]:
     if mod not in sys.modules:
         sys.modules[mod] = MagicMock()
 
-from main import app
-from deps import verify_supabase_jwt
+from main import app  # noqa: E402
+from deps import verify_supabase_jwt  # noqa: E402
 
 FAKE_USER = {"user_id": "test-uid-123", "email": "test@example.com"}
 

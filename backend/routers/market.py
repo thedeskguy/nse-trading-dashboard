@@ -4,7 +4,6 @@ import asyncio
 
 import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from typing import Annotated
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 

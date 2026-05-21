@@ -1,10 +1,10 @@
 """Tests for services/cache.py — in-memory fallback path (no Redis configured)."""
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import asyncio
 import pytest
-from unittest.mock import patch
 
 # Force the in-memory path by ensuring Redis env vars are absent
 @pytest.fixture(autouse=True)
