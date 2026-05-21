@@ -75,3 +75,37 @@ export function useConfluence(ticker: string) {
     enabled: !!ticker,
   });
 }
+
+export interface BacktestTrade {
+  date_entry: string;
+  date_exit: string;
+  entry_price: number;
+  exit_price: number;
+  pnl_pct: number;
+}
+
+export interface BacktestStats {
+  num_trades: number;
+  win_rate: number;
+  total_return_pct: number;
+  avg_gain_pct: number;
+  avg_loss_pct: number;
+  max_drawdown_pct: number;
+}
+
+export interface BacktestResponse {
+  ticker: string;
+  trades: BacktestTrade[];
+  equity_curve: Array<{ date: string; equity: number }>;
+  stats: BacktestStats;
+}
+
+export function useBacktest(ticker: string, period = "1y", enabled = true) {
+  return useQuery({
+    queryKey: ["backtest", ticker, period],
+    queryFn: () =>
+      apiFetch<BacktestResponse>("/api/v1/analysis/backtest", { ticker, period }),
+    staleTime: 6 * 60 * 60 * 1000,
+    enabled: !!ticker && enabled,
+  });
+}
