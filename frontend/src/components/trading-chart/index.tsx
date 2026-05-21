@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ChartToolbar, type Interval, INTERVAL_CONFIG } from './ChartToolbar'
+import { ChartToolbar, type Interval, type Range, INTERVAL_CONFIG } from './ChartToolbar'
 import { ChartCore } from './ChartCore'
 import { SubChartPane } from './SubChartPane'
 import { IndicatorSearch } from './IndicatorSearch'
+import { RangeSelector } from './RangeSelector'
 import { useChartData } from './hooks/useChartData'
 import { useIndicators } from './hooks/useIndicators'
 import { useChartSync } from './hooks/useChartSync'
@@ -17,6 +18,7 @@ interface TradingChartProps {
 
 export function TradingChart({ ticker }: TradingChartProps) {
   const [activeInterval, setActiveInterval] = useState<Interval>('1D')
+  const [activeRange, setActiveRange] = useState<Range>('6M')
   const [indicatorSearchOpen, setIndicatorSearchOpen] = useState(false)
 
   const { apiInterval, period } = INTERVAL_CONFIG[activeInterval]
@@ -38,13 +40,22 @@ export function TradingChart({ ticker }: TradingChartProps) {
   const handleChartReady = (chart: IChartApi) => registerChart(chart)
   const handleChartRemove = (chart: IChartApi) => unregisterChart(chart)
 
+  // When interval changes, reset range to a sensible default
+  function handleIntervalChange(iv: Interval) {
+    setActiveInterval(iv)
+    if (iv === '1m') setActiveRange('1D')
+    else if (['5m', '15m', '30m'].includes(iv)) setActiveRange('5D')
+    else if (iv === '1H') setActiveRange('1M')
+    else setActiveRange('6M')
+  }
+
   return (
     <div className="flex flex-col bg-[#131722] rounded-lg overflow-hidden border border-[#2a2e39]">
       <ChartToolbar
         ticker={ticker}
         companyName={companyInfo?.name}
         activeInterval={activeInterval}
-        onIntervalChange={setActiveInterval}
+        onIntervalChange={handleIntervalChange}
         onIndicatorsClick={() => setIndicatorSearchOpen(true)}
       />
 
@@ -57,6 +68,7 @@ export function TradingChart({ ticker }: TradingChartProps) {
           <ChartCore
             candles={candles}
             overlayIndicators={overlayIndicators}
+            visibleRange={activeRange}
             onChartReady={handleChartReady}
             onChartRemove={handleChartRemove}
           />
@@ -72,6 +84,8 @@ export function TradingChart({ ticker }: TradingChartProps) {
               onChartRemove={handleChartRemove}
             />
           ))}
+
+          <RangeSelector activeRange={activeRange} onRangeChange={setActiveRange} />
         </>
       )}
 

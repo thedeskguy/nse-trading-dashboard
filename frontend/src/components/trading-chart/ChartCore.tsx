@@ -7,8 +7,16 @@ import {
   LineSeries,
   LineStyle,
   type IChartApi,
+  type Time,
+  type UTCTimestamp,
 } from 'lightweight-charts'
 import type { ActiveIndicator, Candle } from './lib/types'
+import type { Range } from './ChartToolbar'
+
+function toChartTime(timestamp: string): Time {
+  if (timestamp.length > 10) return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp
+  return timestamp.slice(0, 10)
+}
 import {
   computeEMA,
   computeBB,
@@ -19,6 +27,7 @@ import {
 interface ChartCoreProps {
   candles: Candle[]
   overlayIndicators: ActiveIndicator[]
+  visibleRange?: Range
   height?: number
   onScrollLeft?: () => void
   onChartReady?: (chart: IChartApi) => void
@@ -37,9 +46,25 @@ function emaColor(period: number): string {
   }
 }
 
+function computeFromDate(lastDate: Date, range: Range): Date {
+  const from = new Date(lastDate)
+  switch (range) {
+    case '1D':  from.setDate(from.getDate() - 1);       break
+    case '5D':  from.setDate(from.getDate() - 5);       break
+    case '1M':  from.setMonth(from.getMonth() - 1);     break
+    case '3M':  from.setMonth(from.getMonth() - 3);     break
+    case '6M':  from.setMonth(from.getMonth() - 6);     break
+    case '1Y':  from.setFullYear(from.getFullYear() - 1); break
+    case '5Y':  from.setFullYear(from.getFullYear() - 5); break
+    case 'All': from.setFullYear(1970);                 break
+  }
+  return from
+}
+
 export function ChartCore({
   candles,
   overlayIndicators,
+  visibleRange = '6M',
   height = 500,
   onScrollLeft,
   onChartReady,
@@ -92,7 +117,7 @@ export function ChartCore({
 
     candleSeries.setData(
       candles.map(c => ({
-        time: c.timestamp.slice(0, 10) as any,
+        time: toChartTime(c.timestamp),
         open: c.open,
         high: c.high,
         low: c.low,
@@ -100,14 +125,25 @@ export function ChartCore({
       }))
     )
 
-    // Set visible range to last 6 months
+    // Set visible range based on visibleRange prop
     const lastCandle = candles[candles.length - 1]
+    const isIntraday = lastCandle.timestamp.length > 10
     const lastDate = new Date(lastCandle.timestamp)
-    const sixMonthsAgo = new Date(lastDate)
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    const fromStr = sixMonthsAgo.toISOString().slice(0, 10)
+    const fromDate = computeFromDate(lastDate, visibleRange)
     try {
-      chart.timeScale().setVisibleRange({ from: fromStr as import('lightweight-charts').Time, to: lastCandle.timestamp.slice(0, 10) as import('lightweight-charts').Time })
+      if (visibleRange === 'All') {
+        chart.timeScale().fitContent()
+      } else if (isIntraday) {
+        chart.timeScale().setVisibleRange({
+          from: Math.floor(fromDate.getTime() / 1000) as UTCTimestamp,
+          to: Math.floor(lastDate.getTime() / 1000) as UTCTimestamp,
+        })
+      } else {
+        chart.timeScale().setVisibleRange({
+          from: fromDate.toISOString().slice(0, 10) as Time,
+          to: lastCandle.timestamp.slice(0, 10) as Time,
+        })
+      }
     } catch {
       chart.timeScale().fitContent()
     }
@@ -225,7 +261,7 @@ export function ChartCore({
       chartRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, overlayIndicators, height])
+  }, [candles, overlayIndicators, height, visibleRange])
 
   return (
     <div className="relative w-full" style={{ height, backgroundColor: '#131722' }}>

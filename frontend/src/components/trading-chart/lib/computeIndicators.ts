@@ -1,7 +1,13 @@
 // frontend/src/components/trading-chart/lib/computeIndicators.ts
+import type { Time, UTCTimestamp } from 'lightweight-charts'
 import type { Candle, LinePoint, HistPoint, MACDResult, BBResult, StochasticResult, SupertrendResult, VolumeProfileBar } from './types'
 
-function toTime(timestamp: string): string { return timestamp.slice(0, 10) }
+// Intraday timestamps have a time component (length > 10); convert to Unix seconds.
+// Daily timestamps are "YYYY-MM-DD" strings which lightweight-charts accepts directly.
+function toTime(timestamp: string): Time {
+  if (timestamp.length > 10) return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp
+  return timestamp.slice(0, 10)
+}
 
 // ── EMA ──────────────────────────────────────────────────────────────────────
 export function computeEMA(candles: Candle[], period: number): LinePoint[] {
