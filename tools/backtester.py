@@ -63,7 +63,7 @@ def run_backtest(df: pd.DataFrame) -> dict:
             entry_price = close
             entry_date = date
 
-        elif state == "long" and sig in ("SELL", "HOLD"):
+        elif state == "long" and sig == "SELL":
             pnl_pct = (close - entry_price) / entry_price * 100
             trades.append(
                 {

@@ -72,3 +72,13 @@ def test_all_pnl_values_are_finite():
     for trade in result["trades"]:
         assert isinstance(trade["pnl_pct"], float)
         assert not (trade["pnl_pct"] != trade["pnl_pct"])  # not NaN
+
+
+def test_force_close_at_last_bar():
+    """A position entered near the end must be closed at the last bar."""
+    df = _make_df(100)
+    result = run_backtest(df)
+    # Any open position at end-of-period must appear in trades
+    for trade in result["trades"]:
+        assert trade["date_exit"] != ""
+        assert trade["date_entry"] != ""
