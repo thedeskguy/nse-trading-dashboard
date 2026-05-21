@@ -14,6 +14,7 @@ import { VerdictBanner, classifyVerdict, type Verdict } from "@/components/analy
 import { useSignal, useCompanyInfo } from "@/lib/api/market";
 import { useFundamentals, useMLPredict, useConfluence } from "@/lib/api/analysis";
 import { ConfluenceGrid, ConfluenceGridSkeleton, ConfluenceGridError } from "@/components/analysis/ConfluenceGrid";
+import { BacktestPanel } from "@/components/analysis/BacktestPanel";
 import { useWebSocketQuote } from "@/lib/api/websocket";
 import { AlertCircle, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
 import { DataFreshness } from "@/components/ui/DataFreshness";
@@ -48,6 +49,8 @@ function TickerDashboard({ ticker }: { ticker: string }) {
       queryClient.invalidateQueries({ queryKey: ["ml-predict", ticker] });
     } else if (activeTab === "confluence") {
       queryClient.invalidateQueries({ queryKey: ["confluence", ticker] });
+    } else if (activeTab === "backtest") {
+      queryClient.invalidateQueries({ queryKey: ["backtest", ticker] });
     }
   }, [activeTab, ticker, queryClient]);
 
@@ -184,6 +187,7 @@ function TickerDashboard({ ticker }: { ticker: string }) {
             <TabsTrigger value="fundamental" className="rounded-lg">Fundamental</TabsTrigger>
             <TabsTrigger value="ml" className="rounded-lg">ML Prediction</TabsTrigger>
             <TabsTrigger value="confluence" className="rounded-lg">Confluence</TabsTrigger>
+            <TabsTrigger value="backtest" className="rounded-lg">Backtest</TabsTrigger>
           </TabsList>
           <button
             onClick={refreshTab}
@@ -282,6 +286,11 @@ function TickerDashboard({ ticker }: { ticker: string }) {
           ) : confluenceError ? (
             <ConfluenceGridError />
           ) : null}
+        </TabsContent>
+
+        {/* Backtest */}
+        <TabsContent value="backtest" className="mt-4">
+          <BacktestPanel ticker={ticker} enabled={activeTab === "backtest"} />
         </TabsContent>
       </Tabs>
     </div>
