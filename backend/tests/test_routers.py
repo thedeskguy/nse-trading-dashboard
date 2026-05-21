@@ -191,3 +191,31 @@ def test_webhook_no_secret_accepts_payload(client):
 
     assert r.status_code == 200
     assert r.json()["received"] is True
+
+
+# ---------------------------------------------------------------------------
+# Backtest endpoint
+# ---------------------------------------------------------------------------
+
+def test_backtest_returns_expected_structure(client):
+    """Backtest endpoint returns ticker + trades/equity_curve/stats when mocked."""
+    mock_result = {
+        "trades": [],
+        "equity_curve": [{"date": "2024-01-01", "equity": 100.0}],
+        "stats": {
+            "num_trades": 0,
+            "win_rate": 0.0,
+            "total_return_pct": 0.0,
+            "avg_gain_pct": 0.0,
+            "avg_loss_pct": 0.0,
+            "max_drawdown_pct": 0.0,
+        },
+    }
+    with patch("routers.analysis.cached", new_callable=AsyncMock, return_value=mock_result):
+        r = client.get("/api/v1/analysis/backtest", params={"ticker": "RELIANCE.NS"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ticker"] == "RELIANCE.NS"
+    assert "trades" in body
+    assert "equity_curve" in body
+    assert "stats" in body

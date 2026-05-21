@@ -162,3 +162,32 @@ async def get_confluence(
             "hold_count": hold_count,
         },
     }
+
+
+@router.get("/analysis/backtest")
+async def get_backtest(
+    ticker: str = _TICKER,
+    period: str = _PERIOD,
+    user: dict = Depends(verify_supabase_jwt),
+):
+    """Walk-forward backtest of the indicator signal strategy on daily OHLCV."""
+    cache_key = f"backtest:{ticker}:{period}"
+
+    try:
+        from tools.fetch_stock_data import fetch_ohlcv
+        from tools.compute_indicators import compute_all
+        from tools.backtester import run_backtest
+
+        def _run():
+            df = fetch_ohlcv(ticker, "1d", period)
+            df = compute_all(df)
+            return run_backtest(df)
+
+        result = await cached(cache_key, ttl=adaptive_ttl(21600), fn=_run)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        log.exception("Backtest failed for %s: %s", ticker, e)
+        raise HTTPException(status_code=503, detail=f"Backtest failed: {e}")
+
+    return {"ticker": ticker, **result}
