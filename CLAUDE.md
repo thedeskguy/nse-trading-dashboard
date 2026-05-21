@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python project using Streamlit for dashboards. Key frameworks: Streamlit, Plotly. Always test Streamlit apps with `streamlit run <file> --server.headless true` after significant changes.
+This is a full-stack NSE trading SaaS. It has three layers:
+- **Streamlit app** (root) — original data/signal engine; Python + Plotly. Test with `streamlit run <file> --server.headless true` after significant changes.
+- **FastAPI backend** (`backend/`) — REST API serving the Next.js frontend. Deployed on Railway.
+- **Next.js frontend** (`frontend/`) — React SaaS UI with Supabase auth + Razorpay payments.
 
 ## Code Quality
 
@@ -33,26 +36,83 @@ You're working inside the **WAT framework** (Workflows, Agents, Tools). This arc
 3. **Keep workflows current.** Update them as you learn better methods or encounter constraints. Do not create or overwrite workflows without asking unless explicitly told to.
 4. **Update README on major additions.** Whenever a new dashboard, tool, workflow, or significant feature is added to the codebase, update `README.md` to reflect it — new sections, updated file structure, usage instructions, and any new dependencies or API requirements.
 
+## Git Workflow (SDLC)
+
+**Branch strategy:**
+- `main` — production-ready only. Never commit directly. Merge from `develop` via PR.
+- `develop` — integration branch. All feature branches merge here first.
+- `feature/<name>` — one branch per feature/phase (e.g. `feature/phase-6-payments`)
+- `fix/<name>` — bug fixes branched from `develop`
+- `hotfix/<name>` — critical production fixes branched from `main`
+
+**Flow:**
+```
+feature/x  →  develop  →  (PR review)  →  main  →  deploy
+```
+
+**CI runs on every PR to `develop` or `main`:**
+- Backend: ruff lint + syntax check + pytest
+- Frontend: tsc type-check + eslint + next build
+
+**Before starting any new phase or feature:**
+```bash
+git checkout develop && git pull
+git checkout -b feature/<phase-or-feature-name>
+```
+
+**Before merging to develop:**
+- [ ] `npm test` passes (frontend)
+- [ ] `pytest tests/` passes (backend)
+- [ ] No TypeScript errors (`npx tsc --noEmit`)
+- [ ] No lint errors
+
 ## Setup
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt   # if exists
 cp .env.example .env              # then fill in API keys
+cd frontend && cp .env.example .env.local  # fill in Supabase keys
 ```
 
 ## File Structure
 
 ```
-dashboard.py        # Main Streamlit entry point (equities)
+# Streamlit data/signal layer (root)
+dashboard.py          # Main Streamlit entry point (equities)
+equity_scanner.py     # Nifty 100 equity scanner
 pages/
-  index_options.py  # Index Options page (NIFTY / BANKNIFTY / MIDCPNIFTY)
-tools/              # Python scripts (deterministic execution)
-tests/              # Unit tests (pytest)
-workflows/          # Markdown SOPs
-.streamlit/         # Streamlit config (dark theme, headless)
-.tmp/               # Temporary cache files (angel_tokens.json, etc.) — disposable
-.env                # API keys and secrets (never commit)
+  index_options.py    # Index Options page (NIFTY / BANKNIFTY / MIDCPNIFTY)
+  about.py
+tools/                # WAT Layer 3 — Python scripts (deterministic execution)
+workflows/            # WAT Layer 1 — Markdown SOPs
+tests/                # Unit tests (pytest)
+
+# FastAPI backend
+backend/
+  main.py             # FastAPI app entry point
+  config.py / deps.py
+  routers/            # market, options, analysis, payments, health
+  services/           # angel_session, cache, serializers
+  requirements.txt    # Backend-specific deps
+  .env                # Backend secrets
+
+# Next.js SaaS frontend
+frontend/
+  src/app/            # Next.js App Router pages
+  src/components/     # React components
+  CLAUDE.md / AGENTS.md  # Frontend-specific agent rules
+
+# Docs & config
+docs/
+  SYSTEM_GUIDE.md     # Full system guide (Streamlit layer)
+  tutorial.md         # Personal walkthrough / explainer
+PLAN.md               # SaaS roadmap (Phases 0–10)
+README.md             # Public project overview
+railway.toml          # Railway deploy config (starts backend)
+.streamlit/           # Streamlit config (dark theme, headless)
+.tmp/                 # Temporary cache files — disposable
+.env / .env.example   # Root API keys (Streamlit layer)
 ```
 
 ## Key Architecture Notes
@@ -63,4 +123,4 @@ workflows/          # Markdown SOPs
 - **Plotly price charts** use `type="category"` x-axis with string date labels (via `_x_labels()`) to eliminate weekend/holiday gaps.
 - The app runs as a single Streamlit multi-page app — `dashboard.py` is the entry point, Index Options is under `pages/`.
 
-All outputs are local (charts, signals). No cloud deliverables in this project.
+The Streamlit layer outputs are local (charts, signals). The SaaS layer deploys backend to Railway and frontend to Vercel.

@@ -4,12 +4,15 @@ Logs in once per process, reuses the session token, re-logs on expiry.
 """
 
 import os
+import time
 import base64
 import binascii
 import pyotp
 from dotenv import load_dotenv
 
 _obj = None
+_login_time: float = 0.0
+_SESSION_TTL = 20 * 3600  # refresh before Angel One's 24h expiry
 
 
 def _normalize_totp_secret(secret: str) -> str:
@@ -74,18 +77,20 @@ def _login():
     return obj
 
 
-def get_session() -> "SmartConnect":
-    """Return the cached SmartConnect session, logging in if needed."""
-    global _obj
-    if _obj is None:
+def get_session():
+    """Return the cached SmartConnect session, logging in if needed or if session is stale."""
+    global _obj, _login_time
+    if _obj is None or (time.time() - _login_time) > _SESSION_TTL:
         _obj = _login()
+        _login_time = time.time()
     return _obj
 
 
 def reset_session() -> None:
     """Force re-login on next call (use after token expiry errors)."""
-    global _obj
+    global _obj, _login_time
     _obj = None
+    _login_time = 0.0
 
 
 if __name__ == "__main__":

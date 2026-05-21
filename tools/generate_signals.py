@@ -91,6 +91,7 @@ def score_support_resistance(price: float, support, resistance) -> tuple:
     near_resistance = resistance is not None and abs(price - resistance) / price < proximity_pct
     bounced_support = support is not None and 0.005 < (price - support) / price < 0.02
     broke_support = support is not None and price < support
+    broke_resistance = resistance is not None and price > resistance
 
     if near_support:
         return 15, f"Near Support {support:.2f}"
@@ -100,6 +101,8 @@ def score_support_resistance(price: float, support, resistance) -> tuple:
         return 10, f"Bounced from Support {support:.2f}"
     if broke_support:
         return -10, f"Broke Below Support {support:.2f}"
+    if broke_resistance:
+        return 10, f"Above Resistance {resistance:.2f} — Breakout"
     return 0, "Between S/R levels"
 
 

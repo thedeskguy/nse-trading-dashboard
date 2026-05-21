@@ -8,6 +8,7 @@ import yfinance as yf
 import pandas as pd
 
 VALID_COMBOS = {
+    "1m":  ["1d", "5d"],
     "5m":  ["1d", "5d", "1mo"],
     "15m": ["1d", "5d", "1mo", "3mo"],
     "30m": ["1d", "5d", "1mo", "3mo"],
@@ -43,19 +44,47 @@ def validate_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _fetch_yfinance(ticker: str, interval: str, period: str, auto_adjust: bool = True) -> pd.DataFrame:
-    """Raw yfinance fetch — raises ValueError on failure."""
-    t = yf.Ticker(ticker)
-    df = t.history(period=period, interval=interval, auto_adjust=auto_adjust)
+    """Raw yfinance fetch — raises ValueError on failure or when circuit is open."""
+    try:
+        from services.circuit_breaker import yfinance_breaker
+        _breaker = yfinance_breaker
+    except ImportError:
+        _breaker = None
+
+    if _breaker and _breaker.is_open():
+        raise ValueError(
+            f"yfinance circuit is open after repeated 429/failures — "
+            f"retry in ~{_breaker.cooldown_seconds}s."
+        )
+
+    yf_symbol = resolve_ticker(ticker)
+    t = yf.Ticker(yf_symbol)
+
+    try:
+        df = t.history(period=period, interval=interval, auto_adjust=auto_adjust)
+    except Exception as exc:
+        # yfinance raises generic exceptions for HTTP 429 and other errors.
+        msg = str(exc).lower()
+        if "429" in msg or "too many requests" in msg or "rate limit" in msg:
+            if _breaker:
+                _breaker.record_failure()
+        raise ValueError(f"yfinance error for '{ticker}': {exc}") from exc
 
     if df.empty:
+        # An empty response for a valid ticker usually means a 429-throttle with no exception.
+        if _breaker:
+            _breaker.record_failure()
         raise ValueError(
             f"No data returned for '{ticker}'. "
             "Check that the ticker is correct and the market has trading history."
         )
 
+    if _breaker:
+        _breaker.record_success()
+
     df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
 
-    if interval in ("5m", "15m", "30m", "1h"):
+    if interval in ("1m", "5m", "15m", "30m", "1h"):
         if df.index.tz is None:
             df.index = df.index.tz_localize("UTC")
         df.index = df.index.tz_convert("Asia/Kolkata")
@@ -66,6 +95,66 @@ def _fetch_yfinance(ticker: str, interval: str, period: str, auto_adjust: bool =
         raise ValueError(f"Data for '{ticker}' was empty after cleaning.")
 
     return df
+
+
+def fetch_yfinance_bulk(
+    tickers: list[str],
+    interval: str = "1d",
+    period: str = "3mo",
+    auto_adjust: bool = True,
+) -> dict[str, pd.DataFrame]:
+    """Fetch multiple tickers in one yfinance request."""
+    if not tickers:
+        return {}
+
+    resolved = [resolve_ticker(ticker) for ticker in tickers]
+    raw = yf.download(
+        tickers=resolved,
+        period=period,
+        interval=interval,
+        auto_adjust=auto_adjust,
+        progress=False,
+        threads=True,
+        group_by="ticker",
+    )
+
+    if raw.empty:
+        raise ValueError("No data returned for bulk fetch.")
+
+    results: dict[str, pd.DataFrame] = {}
+    required_cols = ["Open", "High", "Low", "Close", "Volume"]
+
+    if isinstance(raw.columns, pd.MultiIndex):
+        for original, resolved_ticker in zip(tickers, resolved):
+            if resolved_ticker not in raw.columns.get_level_values(0):
+                continue
+            df = raw[resolved_ticker].copy()
+            if not set(required_cols).issubset(df.columns):
+                continue
+            df = df[required_cols]
+            if interval in ("1m", "5m", "15m", "30m", "1h"):
+                if df.index.tz is None:
+                    df.index = df.index.tz_localize("UTC")
+                df.index = df.index.tz_convert("Asia/Kolkata")
+            df = validate_dataframe(df)
+            if not df.empty:
+                results[original] = df
+    else:
+        df = raw.copy()
+        if set(required_cols).issubset(df.columns):
+            df = df[required_cols]
+            if interval in ("1m", "5m", "15m", "30m", "1h"):
+                if df.index.tz is None:
+                    df.index = df.index.tz_localize("UTC")
+                df.index = df.index.tz_convert("Asia/Kolkata")
+            df = validate_dataframe(df)
+            if not df.empty:
+                results[tickers[0]] = df
+
+    if not results:
+        raise ValueError("Bulk fetch returned no usable data.")
+
+    return results
 
 
 def fetch_ohlcv(
@@ -100,20 +189,25 @@ def fetch_ohlcv(
             f"Valid periods: {VALID_COMBOS[interval]}"
         )
 
+    # Angel One has ~3-month history. For long periods, go straight to yfinance.
+    _ANGEL_OK_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo"}
+    _skip_angel = period not in _ANGEL_OK_PERIODS
+
     # ── Try Angel One first (5-second hard timeout) ────────────────────────────
-    import concurrent.futures
-    try:
-        from tools.fetch_angel_ohlcv import fetch_angel_ohlcv
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(fetch_angel_ohlcv, ticker, interval, period)
-            try:
-                df = future.result(timeout=5)
-                if df is not None and not df.empty:
-                    return df
-            except concurrent.futures.TimeoutError:
-                pass  # Angel One too slow — fall back immediately
-    except Exception:
-        pass
+    if not _skip_angel:
+        import concurrent.futures
+        try:
+            from tools.fetch_angel_ohlcv import fetch_angel_ohlcv
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                future = ex.submit(fetch_angel_ohlcv, ticker, interval, period)
+                try:
+                    df = future.result(timeout=5)
+                    if df is not None and not df.empty:
+                        return df
+                except concurrent.futures.TimeoutError:
+                    pass  # Angel One too slow — fall back immediately
+        except Exception:
+            pass
 
     # ── Fallback: Yahoo Finance ────────────────────────────────────────────────
     return _fetch_yfinance(ticker, interval, period, auto_adjust)
