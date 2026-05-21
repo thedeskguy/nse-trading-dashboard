@@ -228,11 +228,25 @@ export function ChartCore({
   }, [candles, overlayIndicators, height])
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full"
-      style={{ height, backgroundColor: '#131722' }}
-    />
+    <div className="relative w-full" style={{ height, backgroundColor: '#131722' }}>
+      {/* Active overlay indicator labels — top-left, TradingView style */}
+      {overlayIndicators.length > 0 && (
+        <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-x-3 gap-y-0.5 pointer-events-none">
+          {overlayIndicators.map(ind => {
+            const suffix = Object.values(ind.params).join(',')
+            const label = suffix
+              ? `${ind.indicatorId.toUpperCase()} ${suffix}`
+              : ind.indicatorId.toUpperCase()
+            return (
+              <span key={ind.instanceId} className="text-[11px] text-[#787b86] font-mono">
+                {label}
+              </span>
+            )
+          })}
+        </div>
+      )}
+      <div ref={containerRef} className="w-full h-full" />
+    </div>
   )
 }
 

@@ -32,9 +32,4 @@ export const INDICATOR_MAP = Object.fromEntries(INDICATORS.map(d => [d.id, d])) 
 
 export const MAX_PANEL_INDICATORS = 2
 
-export const DEFAULT_ACTIVE: Array<{ id: IndicatorId; params: Record<string, number> }> = [
-  { id: 'ema',  params: { period: 20 } },
-  { id: 'ema',  params: { period: 50 } },
-  { id: 'ema',  params: { period: 200 } },
-  { id: 'rsi',  params: { period: 14 } },
-]
+export const DEFAULT_ACTIVE: Array<{ id: IndicatorId; params: Record<string, number> }> = []

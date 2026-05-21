@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChartToolbar, type Timeframe } from './ChartToolbar'
+import { ChartToolbar, type Interval, INTERVAL_CONFIG } from './ChartToolbar'
 import { ChartCore } from './ChartCore'
 import { SubChartPane } from './SubChartPane'
 import { IndicatorSearch } from './IndicatorSearch'
@@ -9,33 +9,24 @@ import { useChartData } from './hooks/useChartData'
 import { useIndicators } from './hooks/useIndicators'
 import { useChartSync } from './hooks/useChartSync'
 import { useCompanyInfo } from '@/lib/api/market'
-
-const TIMEFRAME_TO_INTERVAL: Record<Timeframe, string> = {
-  '1D': '1d',
-  '5D': '1d',
-  '1M': '1d',
-  '3M': '1d',
-  '6M': '1d',
-  '1Y': '1d',
-  '2Y': '1wk',
-  'All': '1wk',
-}
+import type { IChartApi } from 'lightweight-charts'
 
 interface TradingChartProps {
   ticker: string
 }
 
 export function TradingChart({ ticker }: TradingChartProps) {
-  const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>('6M')
+  const [activeInterval, setActiveInterval] = useState<Interval>('1D')
   const [indicatorSearchOpen, setIndicatorSearchOpen] = useState(false)
 
-  const interval = TIMEFRAME_TO_INTERVAL[activeTimeframe]
+  const { apiInterval, period } = INTERVAL_CONFIG[activeInterval]
 
-  const { candles, isLoading, loadFullHistory } = useChartData(ticker, interval)
+  const { candles, isLoading } = useChartData(ticker, apiInterval, period)
   const {
     activeIndicators,
     addIndicator,
     removeIndicator,
+    updateParams,
     overlayIndicators,
     panelIndicators,
     canAddPanel,
@@ -44,13 +35,16 @@ export function TradingChart({ ticker }: TradingChartProps) {
 
   const { data: companyInfo } = useCompanyInfo(ticker)
 
+  const handleChartReady = (chart: IChartApi) => registerChart(chart)
+  const handleChartRemove = (chart: IChartApi) => unregisterChart(chart)
+
   return (
     <div className="flex flex-col bg-[#131722] rounded-lg overflow-hidden border border-[#2a2e39]">
       <ChartToolbar
         ticker={ticker}
         companyName={companyInfo?.name}
-        activeTimeframe={activeTimeframe}
-        onTimeframeChange={setActiveTimeframe}
+        activeInterval={activeInterval}
+        onIntervalChange={setActiveInterval}
         onIndicatorsClick={() => setIndicatorSearchOpen(true)}
       />
 
@@ -63,9 +57,8 @@ export function TradingChart({ ticker }: TradingChartProps) {
           <ChartCore
             candles={candles}
             overlayIndicators={overlayIndicators}
-            onScrollLeft={loadFullHistory}
-            onChartReady={registerChart}
-            onChartRemove={unregisterChart}
+            onChartReady={handleChartReady}
+            onChartRemove={handleChartRemove}
           />
 
           {panelIndicators.map(ind => (
@@ -75,8 +68,8 @@ export function TradingChart({ ticker }: TradingChartProps) {
               candles={candles}
               height={120}
               onRemove={removeIndicator}
-              onChartReady={registerChart}
-              onChartRemove={unregisterChart}
+              onChartReady={handleChartReady}
+              onChartRemove={handleChartRemove}
             />
           ))}
         </>
@@ -88,6 +81,7 @@ export function TradingChart({ ticker }: TradingChartProps) {
         activeIndicators={activeIndicators}
         onAdd={addIndicator}
         onRemove={removeIndicator}
+        onUpdateParams={updateParams}
         canAddPanel={canAddPanel}
       />
     </div>
