@@ -52,7 +52,7 @@ async def get_subscription_status(
         if not rows:
             return {"plan": "free", "status": "inactive", "current_period_end": None}
 
-        row = rows[0]
+        row: dict = rows[0]  # type: ignore[assignment]
         is_active = row["status"] == "active"
         return {
             "plan": "pro" if is_active else "free",
@@ -141,7 +141,7 @@ async def razorpay_webhook(
             _evt = json.loads(raw_body).get("event", "unknown") if raw_body else "unknown"
             result = _sb.table("webhook_events").insert(
                 {"id": event_id, "event_type": _evt},
-                count="exact",
+                count="exact",  # type: ignore[arg-type]
             ).execute()
             if result.count == 0:
                 # Row already existed (duplicate delivery) — ack immediately
