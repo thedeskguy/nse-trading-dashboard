@@ -173,7 +173,7 @@ Captured from a full-stack audit (2026-04-17). Tackle in priority order whenever
 
 ---
 
-## Phase 12: Expanded Scanner — Nifty 100 / 200 / 500 `[ ]`
+## Phase 12: Expanded Scanner — Nifty 100 / 200 / 500 `[x]` ✅
 - [ ] Backend: Add stock lists for Nifty 100, 200, 500 (NSE CSV or hardcoded lists in `backend/routers/market.py`)
 - [ ] Backend: `GET /api/v1/market/scan?index=NIFTY50|NIFTY100|NIFTY200|NIFTY500` — same parallel asyncio pattern as existing scan, 10-min cache per index
 - [ ] Frontend: Index selector pills (NIFTY 50 / 100 / 200 / 500) above scanner table in `frontend/src/app/dashboard/scanner/page.tsx`
@@ -181,7 +181,7 @@ Captured from a full-stack audit (2026-04-17). Tackle in priority order whenever
 
 ---
 
-## Phase 13: Multi-timeframe Confluence `[ ]`
+## Phase 13: Multi-timeframe Confluence `[x]` ✅
 - [ ] Backend: Add `timeframe` param to `/api/v1/analysis/signal?ticker=X&timeframe=1d|1wk|1mo` — yfinance already supports these intervals
 - [ ] Backend: New endpoint `GET /api/v1/analysis/confluence?ticker=X` returns signal for all 3 timeframes in one response
 - [ ] Frontend: `ConfluenceGrid` component — 3×6 heatmap (rows: 1D / 1W / 1M, cols: RSI / MACD / BB / EMA / Volume / Stoch), cell color = buy/hold/sell
@@ -190,20 +190,20 @@ Captured from a full-stack audit (2026-04-17). Tackle in priority order whenever
 
 ---
 
-## Phase 14: Options Payoff Diagram `[ ]`
-- [ ] Frontend-only (uses existing chain data): `PayoffChart` component using Recharts line chart
-- [ ] Strategy builder UI: pick legs (long call / long put / bull call spread / bear put spread / iron condor), auto-fill strikes near ATM from chain data
-- [ ] Compute P&L at expiry across range of underlying prices: `pnl[price] = Σ(leg.payoff(price) × lot_size) − net_premium_paid`
-- [ ] Annotate: breakeven points, max profit, max loss
-- [ ] Add "Payoff" tab to options page (`frontend/src/app/dashboard/options/[symbol]/page.tsx`) alongside OI Tornado / Chain tabs
+## Phase 14: Options Payoff Diagram `[x] ✅`
+- [x] Frontend-only (uses existing chain data): `PayoffChart` component using Recharts line chart
+- [x] Strategy builder UI: pick legs (long call / long put / bull call spread / bear put spread / iron condor), auto-fill strikes near ATM from chain data
+- [x] Compute P&L at expiry across range of underlying prices: `pnl[price] = Σ(leg.payoff(price) × lot_size) − net_premium_paid`
+- [x] Annotate: breakeven points, max profit, max loss
+- [x] Add "Payoff" tab to options page (`frontend/src/app/dashboard/options/[symbol]/page.tsx`) alongside OI Tornado / Chain tabs
 
 ---
 
-## Phase 15: Backtesting Engine `[ ]`
-- [ ] Backend: `GET /api/v1/analysis/backtest?ticker=X&strategy=ml_signal&period=1y` — replay daily signals on historical OHLCV, compute per-trade P&L
-- [ ] Requires: `price_history` Supabase table (see Phase 11 P1) or on-demand yfinance historical pull
-- [ ] Return: list of trades (date, signal, entry, exit, pnl%), aggregate stats (win rate, avg gain, avg loss)
-- [ ] Frontend: Backtest tab on stock page — equity curve line chart + summary cards (win rate, total return, # trades)
+## Phase 15: Backtesting Engine `[x] ✅`
+- [x] Backend: `GET /api/v1/analysis/backtest?ticker=X&strategy=ml_signal&period=1y` — replay daily signals on historical OHLCV, compute per-trade P&L
+- [x] Requires: on-demand yfinance historical pull (no Supabase table needed)
+- [x] Return: list of trades (date, signal, entry, exit, pnl%), aggregate stats (win rate, avg gain, avg loss)
+- [x] Frontend: Backtest tab on stock page — equity curve area chart + summary cards (win rate, total return, # trades)
 
 ---
 
