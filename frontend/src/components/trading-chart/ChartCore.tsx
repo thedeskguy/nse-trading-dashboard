@@ -14,8 +14,12 @@ import type { ActiveIndicator, Candle } from './lib/types'
 import type { Range } from './ChartToolbar'
 
 function toChartTime(timestamp: string): Time {
-  if (timestamp.length > 10) return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp
-  return timestamp.slice(0, 10)
+  if (timestamp.length <= 10) return timestamp
+  // yfinance daily candles have midnight timestamps (T00:00:00+05:30).
+  // Use the date string so the chart shows the correct date, not 18:30 UTC.
+  if (timestamp.includes('T00:00:00')) return timestamp.slice(0, 10)
+  // Intraday candles: convert to Unix seconds
+  return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp
 }
 import {
   computeEMA,
@@ -73,6 +77,7 @@ export function ChartCore({
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const scrollLeftFired = useRef(false)
+  const tooltipRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -127,7 +132,8 @@ export function ChartCore({
 
     // Set visible range based on visibleRange prop
     const lastCandle = candles[candles.length - 1]
-    const isIntraday = lastCandle.timestamp.length > 10
+    // Intraday = has time component AND it's not midnight (daily yfinance timestamps are midnight)
+    const isIntraday = lastCandle.timestamp.length > 10 && !lastCandle.timestamp.includes('T00:00:00')
     const lastDate = new Date(lastCandle.timestamp)
     const fromDate = computeFromDate(lastDate, visibleRange)
     try {
@@ -242,6 +248,28 @@ export function ChartCore({
       }
     })
 
+    // OHLC hover tooltip
+    chart.subscribeCrosshairMove(param => {
+      const el = tooltipRef.current
+      if (!el) return
+      if (!param.time || !param.seriesData.size) {
+        el.innerHTML = ''
+        return
+      }
+      const d = param.seriesData.get(candleSeries) as { open: number; high: number; low: number; close: number } | undefined
+      if (!d) return
+      const fmt = (n: number) => n.toFixed(2)
+      const chg = d.close - d.open
+      const chgPct = ((chg / d.open) * 100).toFixed(2)
+      const color = chg >= 0 ? '#26a69a' : '#ef5350'
+      el.innerHTML =
+        `<span style="color:#9598a1">O</span> <span>${fmt(d.open)}</span>` +
+        `&nbsp;<span style="color:#9598a1">H</span> <span style="color:#26a69a">${fmt(d.high)}</span>` +
+        `&nbsp;<span style="color:#9598a1">L</span> <span style="color:#ef5350">${fmt(d.low)}</span>` +
+        `&nbsp;<span style="color:#9598a1">C</span> <span>${fmt(d.close)}</span>` +
+        `&nbsp;<span style="color:${color}">${chg >= 0 ? '+' : ''}${fmt(chg)} (${chg >= 0 ? '+' : ''}${chgPct}%)</span>`
+    })
+
     // Notify parent
     onChartReady?.(chart)
 
@@ -265,9 +293,14 @@ export function ChartCore({
 
   return (
     <div className="relative w-full" style={{ height, backgroundColor: '#131722' }}>
-      {/* Active overlay indicator labels — top-left, TradingView style */}
+      {/* OHLC hover tooltip — top-left, updated via DOM ref for perf */}
+      <div
+        ref={tooltipRef}
+        className="absolute top-2 left-2 z-10 text-[11px] font-mono pointer-events-none flex gap-0"
+      />
+      {/* Active overlay indicator labels — below OHLC row */}
       {overlayIndicators.length > 0 && (
-        <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-x-3 gap-y-0.5 pointer-events-none">
+        <div className="absolute top-6 left-2 z-10 flex flex-wrap gap-x-3 gap-y-0.5 pointer-events-none">
           {overlayIndicators.map(ind => {
             const suffix = Object.values(ind.params).join(',')
             const label = suffix
