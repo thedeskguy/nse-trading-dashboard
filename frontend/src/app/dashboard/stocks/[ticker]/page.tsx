@@ -1,30 +1,20 @@
 "use client";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  CandlestickChart,
-  type IndicatorKey,
-  type OverlayKey,
-  type PanelKey,
-} from "@/components/charts/CandlestickChart";
-import { ChartControls } from "@/components/charts/ChartControls";
-import { IndicatorToggles } from "@/components/charts/IndicatorToggles";
-import { IndicatorSubChart } from "@/components/charts/IndicatorSubChart";
-import { useChartSync } from "@/components/charts/useChartSync";
+import { TradingChart } from "@/components/trading-chart";
 import { SignalCard } from "@/components/analysis/SignalCard";
 import { IndicatorBreakdown } from "@/components/analysis/IndicatorBreakdown";
 import { FundamentalsPanel } from "@/components/analysis/FundamentalsPanel";
 import { FundamentalsBreakdown } from "@/components/analysis/FundamentalsBreakdown";
 import { MLPredictionCard } from "@/components/analysis/MLPredictionCard";
 import { VerdictBanner, classifyVerdict, type Verdict } from "@/components/analysis/VerdictBanner";
-import { useSignal, useOHLCV, useCompanyInfo } from "@/lib/api/market";
+import { useSignal, useCompanyInfo } from "@/lib/api/market";
 import { useFundamentals, useMLPredict, useConfluence } from "@/lib/api/analysis";
 import { ConfluenceGrid, ConfluenceGridSkeleton, ConfluenceGridError } from "@/components/analysis/ConfluenceGrid";
 import { useWebSocketQuote } from "@/lib/api/websocket";
-import { INTRADAY, type Interval, type Period } from "@/lib/chartRanges";
 import { AlertCircle, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
 import { DataFreshness } from "@/components/ui/DataFreshness";
 
@@ -40,54 +30,8 @@ function ErrorCard({ className }: { className?: string }) {
 }
 
 function TickerDashboard({ ticker }: { ticker: string }) {
-  const [interval, setInterval] = useState<Interval>("1d");
-  const [period, setPeriod] = useState<Period>("max");
-  const [indicators, setIndicators] = useState<IndicatorKey[]>([]);
-  const registerChart = useChartSync();
-  const onMainChartReady = useCallback(
-    (chart: Parameters<typeof registerChart>[1], series: Parameters<typeof registerChart>[2]) =>
-      registerChart("main", chart, series),
-    [registerChart],
-  );
-  const panelCallbacks = useMemo(
-    () =>
-      Object.fromEntries(
-        (["rsi", "macd", "obv"] as const).map((pk) => [
-          pk,
-          (chart: Parameters<typeof registerChart>[1], series: Parameters<typeof registerChart>[2]) =>
-            registerChart(pk, chart, series),
-        ]),
-      ) as Record<
-        PanelKey,
-        (chart: Parameters<typeof registerChart>[1], series: Parameters<typeof registerChart>[2]) => ReturnType<typeof registerChart>
-      >,
-    [registerChart],
-  );
-
-  const toggleIndicator = (key: IndicatorKey) =>
-    setIndicators((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-
-  const PANEL_KEYS: PanelKey[] = ["rsi", "macd", "obv"];
-  const overlayKeys = indicators.filter(
-    (k): k is OverlayKey => !PANEL_KEYS.includes(k as PanelKey),
-  );
-  const panelKeys = indicators.filter((k): k is PanelKey =>
-    PANEL_KEYS.includes(k as PanelKey),
-  );
-
-  const signalPeriod: Period = INTRADAY.has(interval) ? period : "6mo";
-  const signalInterval: Interval = INTRADAY.has(interval) ? interval : "1d";
-
   const { data: signal, isLoading: signalLoading, isError: signalError, isFetching: signalFetching, dataUpdatedAt: signalUpdatedAt } =
-    useSignal(ticker, signalInterval, signalPeriod);
-  const { data: ohlcv, isLoading: ohlcvLoading, isError: ohlcvError } = useOHLCV(
-    ticker,
-    interval,
-    period,
-    indicators.length > 0,
-  );
+    useSignal(ticker, "1d", "6mo");
   const { data: companyInfo } = useCompanyInfo(ticker);
   const { data: fundamentals, isLoading: fundsLoading, isFetching: fundsFetching } = useFundamentals(ticker);
   const { data: ml, isLoading: mlLoading, isFetching: mlFetching } = useMLPredict(ticker);
@@ -229,53 +173,8 @@ function TickerDashboard({ ticker }: { ticker: string }) {
         </div>
       )}
 
-      {/* Chart + controls */}
-      <div className="bg-card border border-border rounded-2xl p-4">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <p className="text-xs text-muted-foreground">
-            {ohlcv?.candles ? `${ohlcv.candles.length} candles` : ""}
-          </p>
-          <ChartControls
-            interval={interval}
-            period={period}
-            onChange={({ interval: i, period: p }) => {
-              setInterval(i);
-              setPeriod(p);
-            }}
-          />
-        </div>
-        <div className="mb-3">
-          <IndicatorToggles selected={indicators} onToggle={toggleIndicator} />
-        </div>
-        {ohlcvLoading ? (
-          <Skeleton className="w-full h-90 rounded-xl" />
-        ) : ohlcv && ohlcv.candles.length > 0 ? (
-          <>
-            <CandlestickChart
-              candles={ohlcv.candles}
-              height={360}
-              intraday={INTRADAY.has(interval)}
-              indicators={overlayKeys}
-              onChartReady={onMainChartReady}
-            />
-            {panelKeys.map((pk) => (
-              <IndicatorSubChart
-                key={pk}
-                kind={pk}
-                candles={ohlcv.candles}
-                height={140}
-                intraday={INTRADAY.has(interval)}
-                onChartReady={panelCallbacks[pk]}
-              />
-            ))}
-          </>
-        ) : (
-          <div className="h-90 flex flex-col items-center justify-center gap-2 text-muted-foreground text-sm">
-            <AlertCircle size={20} className="opacity-40" />
-            <span>{ohlcvError ? "Chart unavailable" : "No data"}</span>
-          </div>
-        )}
-      </div>
+      {/* Chart */}
+      <TradingChart ticker={ticker} />
 
       {/* Analysis tabs */}
       <Tabs defaultValue="technical" className="flex-col" onValueChange={setActiveTab}>
