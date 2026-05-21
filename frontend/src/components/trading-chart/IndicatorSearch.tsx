@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { X, Check, Search, Settings2, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Check, Search, Settings2, ChevronUp } from 'lucide-react'
 import { INDICATORS, INDICATOR_MAP, MAX_PANEL_INDICATORS } from './lib/indicators'
 import type { ActiveIndicator, IndicatorId, IndicatorCategory } from './lib/types'
 

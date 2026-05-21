@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils";
-
 interface Props { data: Record<string, number | string | null>; ticker: string }
 
 function fmt(val: number | string | null, type: "num" | "pct" | "cr" | "str"): string {
@@ -15,7 +13,7 @@ function fmt(val: number | string | null, type: "num" | "pct" | "cr" | "str"): s
   return n.toFixed(2);
 }
 
-export function FundamentalsPanel({ data, ticker }: Props) {
+export function FundamentalsPanel({ data }: Props) {
   const metrics = [
     { label: "P/E (TTM)", value: fmt(data.pe_trailing, "num") },
     { label: "P/E (Fwd)", value: fmt(data.pe_forward, "num") },
