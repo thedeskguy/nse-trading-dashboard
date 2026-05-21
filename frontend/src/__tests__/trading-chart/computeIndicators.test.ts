@@ -70,7 +70,7 @@ describe('computeBB', () => {
 })
 
 import {
-  computeATR, computeStochastic, computeADX,
+  computeATR, computeStochastic,
   computeOBV, computeVWAP, computeSupertrend, computeVolumeProfile
 } from '@/components/trading-chart/lib/computeIndicators'
 
