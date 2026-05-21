@@ -306,7 +306,7 @@ export default function AboutPage() {
           <div className="space-y-2">
             <div className="text-sm font-medium">Target Variable</div>
             <div className="bg-muted/50 rounded-xl p-4 text-xs text-muted-foreground leading-relaxed">
-              Binary: <strong className="text-foreground">1</strong> if the next day's closing price is higher than today's,
+              Binary: <strong className="text-foreground">1</strong> if the next day&apos;s closing price is higher than today&apos;s,
               <strong className="text-foreground"> 0</strong> otherwise. The model learns to classify each bar based on
               whether the following day will be an up-day or a down-day.
             </div>

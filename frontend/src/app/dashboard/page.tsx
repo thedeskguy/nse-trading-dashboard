@@ -153,7 +153,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold text-base">Nifty 50 Movers</h2>
-            <p className="text-muted-foreground text-xs mt-0.5">Biggest moves in today's session · click any stock to analyse</p>
+            <p className="text-muted-foreground text-xs mt-0.5">Biggest moves in today&apos;s session · click any stock to analyse</p>
           </div>
           <Link
             href="/dashboard/scanner"

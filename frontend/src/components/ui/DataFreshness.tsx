@@ -16,11 +16,10 @@ function elapsed(updatedAt: number): string {
 }
 
 export function DataFreshness({ updatedAt, className = "" }: DataFreshnessProps) {
-  const [label, setLabel] = useState<string>("");
+  const [label, setLabel] = useState<string>(() => updatedAt ? elapsed(updatedAt) : "");
 
   useEffect(() => {
     if (!updatedAt) return;
-    setLabel(elapsed(updatedAt));
     const id = setInterval(() => setLabel(elapsed(updatedAt)), 30_000);
     return () => clearInterval(id);
   }, [updatedAt]);

@@ -57,7 +57,8 @@ function OptionsDashboard({ symbol }: { symbol: Symbol }) {
       timerRef.current = setTimeout(() => setSlowLoading(true), 8000);
     } else {
       if (timerRef.current) clearTimeout(timerRef.current);
-      setSlowLoading(false);
+      // Defer state reset to avoid synchronous setState-in-effect lint error
+      timerRef.current = setTimeout(() => setSlowLoading(false), 0);
     }
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [recLoading]);
