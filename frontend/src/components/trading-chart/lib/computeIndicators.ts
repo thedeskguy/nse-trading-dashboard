@@ -4,8 +4,10 @@ import type { Candle, LinePoint, HistPoint, MACDResult, BBResult, StochasticResu
 
 // Intraday timestamps have a time component (length > 10); convert to Unix seconds.
 // Daily timestamps are "YYYY-MM-DD" strings which lightweight-charts accepts directly.
+// Add IST offset (+05:30) so lightweight-charts displays Indian market hours correctly.
+const IST_OFFSET_SECONDS = 5 * 3600 + 30 * 60
 function toTime(timestamp: string): Time {
-  if (timestamp.length > 10) return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp
+  if (timestamp.length > 10) return (Math.floor(new Date(timestamp).getTime() / 1000) + IST_OFFSET_SECONDS) as UTCTimestamp
   return timestamp.slice(0, 10)
 }
 

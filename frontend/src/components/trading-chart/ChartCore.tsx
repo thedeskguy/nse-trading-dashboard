@@ -13,13 +13,18 @@ import {
 import type { ActiveIndicator, Candle } from './lib/types'
 import type { Range } from './ChartToolbar'
 
+// IST is UTC+05:30 = 19800 seconds ahead of UTC
+const IST_OFFSET_SECONDS = 5 * 3600 + 30 * 60
+
 function toChartTime(timestamp: string): Time {
   if (timestamp.length <= 10) return timestamp
   // yfinance daily candles have midnight timestamps (T00:00:00+05:30).
   // Use the date string so the chart shows the correct date, not 18:30 UTC.
   if (timestamp.includes('T00:00:00')) return timestamp.slice(0, 10)
-  // Intraday candles: convert to Unix seconds
-  return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp
+  // Intraday candles: lightweight-charts displays UTCTimestamp as UTC.
+  // Add IST offset so the displayed time matches Indian market hours.
+  const utcSeconds = Math.floor(new Date(timestamp).getTime() / 1000)
+  return (utcSeconds + IST_OFFSET_SECONDS) as UTCTimestamp
 }
 import {
   computeEMA,
@@ -141,8 +146,8 @@ export function ChartCore({
         chart.timeScale().fitContent()
       } else if (isIntraday) {
         chart.timeScale().setVisibleRange({
-          from: Math.floor(fromDate.getTime() / 1000) as UTCTimestamp,
-          to: Math.floor(lastDate.getTime() / 1000) as UTCTimestamp,
+          from: (Math.floor(fromDate.getTime() / 1000) + IST_OFFSET_SECONDS) as UTCTimestamp,
+          to: (Math.floor(lastDate.getTime() / 1000) + IST_OFFSET_SECONDS) as UTCTimestamp,
         })
       } else {
         chart.timeScale().setVisibleRange({
