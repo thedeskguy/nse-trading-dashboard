@@ -151,6 +151,7 @@ export function BacktestPanel({ ticker, enabled = true }: Props) {
                     interval="preserveStartEnd"
                   />
                   <YAxis
+                    domain={["auto", "auto"]}
                     tickFormatter={(v: number) => `${(v - 100).toFixed(0)}%`}
                     tick={{ fontSize: 10 }}
                     className="text-muted-foreground"
