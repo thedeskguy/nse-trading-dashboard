@@ -90,12 +90,42 @@ def run_backtest(df: pd.DataFrame) -> dict:
             }
         )
 
-    # ── Equity curve ─────────────────────────────────────────────────────────
-    equity = 100.0
-    equity_curve: list[dict] = [{"date": dates[WARMUP], "equity": 100.0}]
-    for trade in trades:
-        equity *= 1 + trade["pnl_pct"] / 100
-        equity_curve.append({"date": trade["date_exit"], "equity": round(equity, 2)})
+    # ── Equity curve (daily mark-to-market) ──────────────────────────────────
+    # Walk every bar: flat periods hold equity constant; open positions show
+    # unrealized P&L daily using that bar's close price.
+    committed_equity = 100.0   # equity locked in after each trade closes
+    equity_curve: list[dict] = []
+
+    # Rebuild state by replaying signals to get daily MTM equity
+    mtm_state = "flat"
+    mtm_entry_price = 0.0
+
+    for i, sig in enumerate(signals):
+        row_idx = WARMUP + i
+        close = float(closes[row_idx])
+        date = dates[row_idx]
+
+        if mtm_state == "flat" and sig == "BUY":
+            mtm_state = "long"
+            mtm_entry_price = close
+
+        elif mtm_state == "long" and sig == "SELL":
+            committed_equity *= (close / mtm_entry_price)
+            mtm_state = "flat"
+
+        # Daily equity: committed * unrealized multiplier if in a position
+        if mtm_state == "long":
+            daily_eq = committed_equity * (close / mtm_entry_price)
+        else:
+            daily_eq = committed_equity
+
+        equity_curve.append({"date": date, "equity": round(daily_eq, 2)})
+
+    # Force-close open position at last bar (matches trade simulation above)
+    if mtm_state == "long":
+        committed_equity *= float(closes[-1]) / mtm_entry_price
+
+    equity = committed_equity
 
     # ── Aggregate stats ───────────────────────────────────────────────────────
     num_trades = len(trades)
