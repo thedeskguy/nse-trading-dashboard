@@ -139,8 +139,8 @@ export function BacktestPanel({ ticker, enabled = true }: Props) {
                 >
                   <defs>
                     <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--buy))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--buy))" stopOpacity={0} />
+                      <stop offset="5%" stopColor="var(--color-buy)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--color-buy)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
@@ -157,11 +157,11 @@ export function BacktestPanel({ ticker, enabled = true }: Props) {
                     className="text-muted-foreground"
                   />
                   <Tooltip content={<EquityTooltip />} />
-                  <ReferenceLine y={100} stroke="hsl(var(--border))" strokeWidth={1.5} />
+                  <ReferenceLine y={100} stroke="var(--color-border)" strokeWidth={1.5} />
                   <Area
                     type="monotone"
                     dataKey="equity"
-                    stroke="hsl(var(--buy))"
+                    stroke="var(--color-buy)"
                     strokeWidth={2}
                     fill="url(#equityGrad)"
                     dot={false}
