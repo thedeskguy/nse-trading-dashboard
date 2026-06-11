@@ -10,7 +10,7 @@ if (
 ) {
   console.warn(
     "[TradeDash] NEXT_PUBLIC_API_URL is pointing to localhost in production. " +
-    "Set it to your Railway backend URL in Vercel environment variables.",
+    "Set it to your Render backend URL in Vercel environment variables.",
   );
 }
 

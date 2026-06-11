@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a full-stack NSE trading SaaS. It has three layers:
 - **Streamlit app** (root) — original data/signal engine; Python + Plotly. Test with `streamlit run <file> --server.headless true` after significant changes.
-- **FastAPI backend** (`backend/`) — REST API serving the Next.js frontend. Deployed on Railway.
+- **FastAPI backend** (`backend/`) — REST API serving the Next.js frontend. Deployed on Render.
 - **Next.js frontend** (`frontend/`) — React SaaS UI with Supabase auth + Razorpay payments.
 
 ## Code Quality
@@ -96,7 +96,7 @@ docs/
   tutorial.md         # Personal walkthrough / explainer
 PLAN.md               # SaaS roadmap (Phases 0–10)
 README.md             # Public project overview
-railway.toml          # Railway deploy config (starts backend)
+render.yaml           # Render deploy config (starts backend)
 .streamlit/           # Streamlit config (dark theme, headless)
 .tmp/                 # Temporary cache files — disposable
 .env / .env.example   # Root API keys (Streamlit layer)
@@ -110,4 +110,4 @@ railway.toml          # Railway deploy config (starts backend)
 - **Plotly price charts** use `type="category"` x-axis with string date labels (via `_x_labels()`) to eliminate weekend/holiday gaps.
 - The app runs as a single Streamlit multi-page app — `dashboard.py` is the entry point, Index Options is under `pages/`.
 
-The Streamlit layer outputs are local (charts, signals). The SaaS layer deploys backend to Railway and frontend to Vercel.
+The Streamlit layer outputs are local (charts, signals). The SaaS layer deploys backend to Render and frontend to Vercel.

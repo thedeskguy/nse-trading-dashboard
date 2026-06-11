@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     );
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // In production behind a reverse proxy (Vercel / Railway), origin may
+      // In production behind a reverse proxy (Vercel / Render), origin may
       // be the internal hostname. Use x-forwarded-host when available.
       const forwardedHost = request.headers.get("x-forwarded-host");
       const isLocal = process.env.NODE_ENV === "development";
