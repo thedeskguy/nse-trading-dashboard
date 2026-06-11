@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     # Stored as str to avoid pydantic-settings v2 pre-parsing list fields.
     # Use settings.cors_origins_list in application code.
     CORS_ORIGINS: str = "http://localhost:3000"
+    # Set to "1" only in local dev when SUPABASE_URL is intentionally absent.
+    # Never set in production — a misconfigured deploy would auth any well-formed token.
     ALLOW_UNVERIFIED_JWT: str = "0"
     SENTRY_DSN: Optional[str] = None
 
@@ -27,12 +29,6 @@ class Settings(BaseSettings):
         if v.startswith("["):
             return json.loads(v)
         return [o.strip() for o in v.split(",") if o.strip()]
-
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-    # Set to "1" only in local dev when SUPABASE_URL is intentionally absent.
-    # Never set in production — a misconfigured deploy would auth any well-formed token.
-    ALLOW_UNVERIFIED_JWT: str = "0"
-    SENTRY_DSN: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
