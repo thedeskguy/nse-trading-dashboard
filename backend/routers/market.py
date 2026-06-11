@@ -279,6 +279,30 @@ async def scan_stocks(
     stock_list = STOCK_LISTS[index]
     cache_key = f"scan:{index.lower()}"
 
+    # When the market is closed, serve the nightly precomputed scan — instant,
+    # zero upstream calls. The live scan path only runs during trading hours.
+    if not is_market_open():
+        try:
+            from tools import price_store
+            pre = await asyncio.to_thread(price_store.get_scan, index)
+            if pre and pre.get("payload"):
+                computed_at = pre.get("computed_at")
+                age_ok = True
+                if computed_at:
+                    from datetime import datetime, timedelta, timezone
+                    dt = datetime.fromisoformat(computed_at.replace("Z", "+00:00"))
+                    age_ok = datetime.now(timezone.utc) - dt < timedelta(days=4)
+                if age_ok:
+                    return {
+                        "stocks": pre["payload"],
+                        "count": len(pre["payload"]),
+                        "index": index,
+                        "precomputed": True,
+                        "computed_at": computed_at,
+                    }
+        except Exception as e:
+            log.warning("precomputed scan unavailable for %s: %s", index, e)
+
     async def _do_scan():
         from tools.fetch_stock_data import fetch_ohlcv, fetch_yfinance_bulk
         from tools.compute_indicators import compute_all
