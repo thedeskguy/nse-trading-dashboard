@@ -106,7 +106,7 @@ Captured from a full-stack audit (2026-04-17). Tackle in priority order whenever
 - [ ] **Verify CORS config.** `backend/main.py` uses `allow_credentials=True`. Confirm `settings.CORS_ORIGINS` in prod is the exact Vercel domains — never `*`.
 - [ ] **Make the app market-hours aware.** Nothing checks IST / NSE session times; the frontend polls Angel at 3 a.m. IST burning the daily session. Add `is_market_open()` and lengthen react-query `staleTime` when closed.
 - [ ] **Razorpay webhook idempotency.** HMAC is verified, but there's no replay check. Store processed `event.id` in Supabase with a unique constraint.
-- [ ] **Persist historical OHLCV.** `/analysis/ml-predict` re-downloads and re-trains on every cache miss. Add a `price_history` table + nightly backfill.
+- [x] **Persist historical OHLCV.** `/analysis/ml-predict` re-downloads and re-trains on every cache miss. Add a `price_history` table + nightly backfill. Done via Supabase price_history + nightly GitHub Actions pipeline (tools/eod_pipeline.py); scanner precomputed in scan_results.
 - [x] **Decide Streamlit layer's fate.** Kept as internal dev tool only — not public-facing. `dashboard.py` / `pages/` remain for local signal/data testing without needing auth. Next.js SaaS is the product.
 - [x] **Decide if backend JWT verification should consult `user_sessions`.** Client-side kick (Phase 7) is sufficient. Server-side enforcement would add a DB query to every API request for a marginal gain (1-hour JWT expiry window). Left as-is.
 

@@ -100,7 +100,11 @@ The Index Options page is accessible via the top navigation inside the app.
 │   ├── generate_signals.py    # Scoring engine → BUY/HOLD/SELL
 │   ├── analyze_options.py     # PCR, Max Pain, strike/expiry selection
 │   ├── ml_predictor.py        # Random Forest next-day direction predictor
-│   └── theme.py               # Plotly/Streamlit dark theme helpers
+│   ├── theme.py               # Plotly/Streamlit dark theme helpers
+│   ├── stock_lists.py         # Nifty 500 stock universe (used by EOD pipeline)
+│   ├── price_store.py         # Supabase read/write helpers for price_history table
+│   ├── eod_pipeline.py        # Nightly EOD OHLCV + scan precompute pipeline
+│   └── requirements-pipeline.txt  # Deps for eod_pipeline (CI/GitHub Actions)
 ├── tests/
 │   └── test_options_fixes.py  # Unit tests for options chain and signal edge cases
 ├── workflows/
@@ -110,6 +114,26 @@ The Index Options page is accessible via the top navigation inside the app.
 ├── requirements.txt
 └── .env.example
 ```
+
+---
+
+## EOD Data Pipeline
+
+Daily OHLCV for Nifty 500 + precomputed scanner signals are persisted in Supabase
+(`price_history`, `scan_results`) by `.github/workflows/eod-pipeline.yml`
+(16:15 IST, Mon–Fri). Backend endpoints read the store first and only hit
+yfinance for a 5-day top-up during market hours, or as full fallback.
+
+- First run / repair: Actions → "EOD price pipeline" → Run workflow → backfill: true
+- Local run: `python tools/eod_pipeline.py --backfill` (needs SUPABASE_URL +
+  SUPABASE_SERVICE_ROLE_KEY in `.env`)
+- Required GitHub secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+
+### Keeping the Render free instance warm
+
+Render's free plan sleeps after ~15 min idle (≈50 s cold start). Create a free
+[UptimeRobot](https://uptimerobot.com) HTTP monitor on `GET /health` at a 10-minute
+interval, or upgrade to Render Starter.
 
 ---
 
