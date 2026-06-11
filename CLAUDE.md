@@ -36,34 +36,21 @@ You're working inside the **WAT framework** (Workflows, Agents, Tools). This arc
 3. **Keep workflows current.** Update them as you learn better methods or encounter constraints. Do not create or overwrite workflows without asking unless explicitly told to.
 4. **Update README on major additions.** Whenever a new dashboard, tool, workflow, or significant feature is added to the codebase, update `README.md` to reflect it — new sections, updated file structure, usage instructions, and any new dependencies or API requirements.
 
-## Git Workflow (SDLC)
+## Git Workflow (single branch)
 
-**Branch strategy:**
-- `main` — production-ready only. Never commit directly. Merge from `develop` via PR.
-- `develop` — integration branch. All feature branches merge here first.
-- `feature/<name>` — one branch per feature/phase (e.g. `feature/phase-6-payments`)
-- `fix/<name>` — bug fixes branched from `develop`
-- `hotfix/<name>` — critical production fixes branched from `main`
+`main` is the only long-lived branch — it is what deploys (Render backend, Vercel frontend).
 
-**Flow:**
-```
-feature/x  →  develop  →  (PR review)  →  main  →  deploy
-```
+- Small changes: commit directly to `main`.
+- Larger features: short-lived `feature/<name>` branch off `main` → PR → merge → **delete the branch immediately**. No `develop`, no long-running branches.
 
-**CI runs on every PR to `develop` or `main`:**
+**CI runs on every push and PR to `main`:**
 - Backend: ruff lint + syntax check + pytest
 - Frontend: tsc type-check + eslint + next build
 
-**Before starting any new phase or feature:**
-```bash
-git checkout develop && git pull
-git checkout -b feature/<phase-or-feature-name>
-```
-
-**Before merging to develop:**
-- [ ] `npm test` passes (frontend)
+**Before pushing to main:**
 - [ ] `pytest tests/` passes (backend)
-- [ ] No TypeScript errors (`npx tsc --noEmit`)
+- [ ] `npm test` passes (frontend, when frontend changed)
+- [ ] No TypeScript errors (`npx tsc --noEmit`, when frontend changed)
 - [ ] No lint errors
 
 ## Setup
