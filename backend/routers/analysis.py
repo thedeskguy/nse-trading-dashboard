@@ -1,6 +1,7 @@
 import sys
 import os
 import asyncio
+import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -66,14 +67,13 @@ async def get_ml_prediction(
     cache_key = f"ml-predict:{ticker}:{period}"
 
     try:
-        from tools.fetch_stock_data import fetch_ohlcv
+        from services.daily_data import get_daily_df
         from tools.compute_indicators import compute_all
         from tools.ml_predictor import train_and_predict
 
-        def _predict():
-            df = fetch_ohlcv(ticker, "1d", period)
-            df = compute_all(df)
-            return train_and_predict(df)
+        async def _predict():
+            df = await get_daily_df(ticker, period)
+            return await asyncio.to_thread(lambda: train_and_predict(compute_all(df.copy())))
 
         prediction = await cached(cache_key, ttl=3600, fn=_predict)
     except ValueError as e:
@@ -83,14 +83,6 @@ async def get_ml_prediction(
         raise HTTPException(status_code=503, detail=f"ML prediction failed: {e}")
 
     return {"ticker": ticker, **prediction}
-
-
-# Timeframe config: (yfinance interval, period to fetch, display label)
-_CONFLUENCE_TIMEFRAMES = [
-    ("1d",  "3mo",  "1D"),
-    ("1wk", "2y",   "1W"),
-    ("1mo", "5y",   "1M"),
-]
 
 
 @router.get("/analysis/confluence")
@@ -104,32 +96,41 @@ async def get_confluence(
     cache_key = f"confluence:{ticker}"
 
     async def _compute_all():
-        from tools.fetch_stock_data import fetch_ohlcv
+        from services.daily_data import get_daily_df, resample_ohlcv
         from tools.compute_indicators import compute_all
         from tools.generate_signals import generate_signal
 
-        async def _one(interval: str, period: str, label: str):
-            try:
-                def _run():
-                    df = fetch_ohlcv(ticker, interval, period)
-                    df = compute_all(df)
-                    return generate_signal(df)
-                sig = await asyncio.to_thread(_run)
-                return {
-                    "timeframe": label,
-                    "signal": sig["signal"],
-                    "confidence": sig["confidence"],
-                    "components": {
-                        k: {"points": v["points"], "label": v["signal"]}
-                        for k, v in sig["components"].items()
-                    },
-                }
-            except Exception as e:
-                log.exception("Confluence %s %s failed: %s", ticker, label, e)
-                return {"timeframe": label, "signal": None, "confidence": None, "components": {}}
+        # One 5y daily fetch; 1W/1M candles are resampled from it instead of
+        # three separate yfinance downloads.
+        daily = await get_daily_df(ticker, "5y")
 
-        results = await asyncio.gather(*[_one(iv, p, lbl) for iv, p, lbl in _CONFLUENCE_TIMEFRAMES])
-        return list(results)
+        def _signal_rows():
+            two_years = daily[daily.index >= daily.index[-1] - pd.DateOffset(years=2)]
+            frames = [
+                ("1D", daily.tail(63).copy()),           # ~3 months of sessions
+                ("1W", resample_ohlcv(two_years, "W-FRI")),
+                ("1M", resample_ohlcv(daily, "ME")),
+            ]
+            rows = []
+            for label, frame in frames:
+                try:
+                    sig = generate_signal(compute_all(frame))
+                    rows.append({
+                        "timeframe": label,
+                        "signal": sig["signal"],
+                        "confidence": sig["confidence"],
+                        "components": {
+                            k: {"points": v["points"], "label": v["signal"]}
+                            for k, v in sig["components"].items()
+                        },
+                    })
+                except Exception as e:
+                    log.exception("Confluence %s %s failed: %s", ticker, label, e)
+                    rows.append({"timeframe": label, "signal": None,
+                                 "confidence": None, "components": {}})
+            return rows
+
+        return await asyncio.to_thread(_signal_rows)
 
     timeframes = await cached(cache_key, ttl=adaptive_ttl(600), fn=_compute_all)
 
@@ -174,14 +175,13 @@ async def get_backtest(
     cache_key = f"backtest:{ticker}:{period}"
 
     try:
-        from tools.fetch_stock_data import fetch_ohlcv
+        from services.daily_data import get_daily_df
         from tools.compute_indicators import compute_all
         from tools.backtester import run_backtest
 
-        def _run():
-            df = fetch_ohlcv(ticker, "1d", period)
-            df = compute_all(df)
-            return run_backtest(df)
+        async def _run():
+            df = await get_daily_df(ticker, period)
+            return await asyncio.to_thread(lambda: run_backtest(compute_all(df.copy())))
 
         result = await cached(cache_key, ttl=adaptive_ttl(21600), fn=_run)
     except ValueError as e:

@@ -101,20 +101,27 @@ async def get_ohlcv(
     cache_key = f"ohlcv:{ticker}:{interval}:{period}:ind={int(with_indicators)}"
 
     try:
-        from tools.fetch_stock_data import fetch_ohlcv
-
-        def _fetch():
-            df = fetch_ohlcv(ticker, interval, period)
+        async def _fetch():
+            if interval == "1d":
+                from services.daily_data import get_daily_df
+                df = (await get_daily_df(ticker, period)).copy()
+            else:
+                from tools.fetch_stock_data import fetch_ohlcv
+                df = await asyncio.to_thread(fetch_ohlcv, ticker, interval, period)
             if with_indicators:
                 from tools.compute_indicators import (
                     compute_emas, compute_bollinger, compute_rsi,
                     compute_macd, compute_obv,
                 )
-                df = compute_emas(df, [9, 21, 50, 200])
-                df = compute_bollinger(df, period=20, std=2.0)
-                df = compute_rsi(df, period=14)
-                df = compute_macd(df)
-                df = compute_obv(df)
+
+                def _ind(d):
+                    d = compute_emas(d, [9, 21, 50, 200])
+                    d = compute_bollinger(d, period=20, std=2.0)
+                    d = compute_rsi(d, period=14)
+                    d = compute_macd(d)
+                    return compute_obv(d)
+
+                df = await asyncio.to_thread(_ind, df)
             return df
 
         df = await cached(cache_key, ttl=adaptive_ttl(300), fn=_fetch)
@@ -236,14 +243,17 @@ async def get_signal(
     cache_key = f"signal:{ticker}:{interval}:{period}"
 
     try:
-        from tools.fetch_stock_data import fetch_ohlcv
+        from services.daily_data import get_daily_df
         from tools.compute_indicators import compute_all
         from tools.generate_signals import generate_signal
 
-        def _compute():
-            df = fetch_ohlcv(ticker, interval, period)
-            df = compute_all(df)
-            return generate_signal(df)
+        async def _compute():
+            if interval == "1d":
+                df = await get_daily_df(ticker, period)
+            else:
+                from tools.fetch_stock_data import fetch_ohlcv
+                df = await asyncio.to_thread(fetch_ohlcv, ticker, interval, period)
+            return await asyncio.to_thread(lambda: generate_signal(compute_all(df.copy())))
 
         signal = await cached(cache_key, ttl=adaptive_ttl(300), fn=_compute)
     except ValueError as e:
