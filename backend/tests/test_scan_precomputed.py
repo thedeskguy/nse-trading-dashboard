@@ -1,5 +1,6 @@
 # backend/tests/test_scan_precomputed.py
-import sys, os
+import sys
+import os
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # backend/

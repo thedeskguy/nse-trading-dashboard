@@ -1,6 +1,7 @@
 # backend/tests/test_daily_data.py
 import asyncio
-import sys, os
+import sys
+import os
 from datetime import datetime
 
 import numpy as np
