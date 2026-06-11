@@ -101,7 +101,9 @@ async def get_confluence(
         from tools.generate_signals import generate_signal
 
         # One 5y daily fetch; 1W/1M candles are resampled from it instead of
-        # three separate yfinance downloads.
+        # three separate yfinance downloads. `daily` is guaranteed non-empty:
+        # get_daily_df raises ValueError (-> 404) when no data exists, so the
+        # index[-1] and resample calls below are safe.
         daily = await get_daily_df(ticker, "5y")
 
         def _signal_rows():

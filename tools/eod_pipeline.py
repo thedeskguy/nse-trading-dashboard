@@ -6,7 +6,7 @@ Nightly EOD pipeline (WAT Layer 3).
 3. Recompute scanner signals for NIFTY50/100/200/500 into `scan_results`.
 
 Run from repo root:
-    python tools/eod_pipeline.py              # daily top-up (1mo window)
+    python tools/eod_pipeline.py              # daily top-up (3mo window)
     python tools/eod_pipeline.py --backfill   # full 5y backfill (first run)
 
 Scheduled by .github/workflows/eod-pipeline.yml at 16:15 IST, Mon-Fri.
@@ -85,14 +85,19 @@ def main() -> None:
         sys.exit("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set")
 
     tickers = [t for t, _ in STOCK_LISTS["NIFTY500"]]
-    period = "5y" if args.backfill else "1mo"
+    # Daily runs fetch 3mo (not just the new day) so the store self-heals after
+    # pipeline outages of up to ~3 months without a manual backfill.
+    period = "5y" if args.backfill else "3mo"
     print(f"Refreshing {len(tickers)} tickers, period={period}")
     refresh_prices(tickers, period)
 
-    # Signals need ~3 months of bars; daily runs only fetched 1mo, so read the
-    # scan window back from the store.
+    # Signals need ~3 months of bars — read the scan window back from the store.
     print("Loading 120-day window for scan computation…")
     history = price_store.get_history_bulk(tickers, days=120)
+    short = sum(1 for df in history.values() if len(df) < 60)
+    if short:
+        print(f"WARNING: {short} tickers have <60 bars in the scan window "
+              "(new listings or store gaps) — their signals may be weak or None")
 
     for index_name, stock_list in STOCK_LISTS.items():
         payload = build_scan_payload(stock_list, history)
