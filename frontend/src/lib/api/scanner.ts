@@ -17,6 +17,8 @@ export interface ScanResponse {
   stocks: ScanResult[];
   count: number;
   index: string;
+  precomputed?: boolean;
+  computed_at?: string | null;
 }
 
 export function useScanner(index: ScanIndex = "NIFTY50") {

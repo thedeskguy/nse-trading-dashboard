@@ -13,6 +13,7 @@ from services.limiter import limiter
 from services.logger import get_logger
 from services.market_hours import is_market_open, adaptive_ttl
 from services.serializers import df_to_records
+from tools.stock_lists import STOCK_LISTS
 
 log = get_logger(__name__)
 
@@ -22,370 +23,6 @@ _INTERVAL = Query("1d", pattern=r"^(1m|2m|5m|15m|30m|60m|90m|1h|1d|5d|1wk|1mo|3m
 _PERIOD  = Query("3mo", pattern=r"^(1d|5d|1mo|3mo|6mo|1y|2y|5y|10y|ytd|max)$")
 
 router = APIRouter()
-
-# Current Nifty 50 constituents — synced with NSE India on 2026-04-18
-NIFTY_50 = [
-    ("ADANIENT.NS",   "Adani Enterprises"),
-    ("ADANIPORTS.NS", "Adani Ports"),
-    ("APOLLOHOSP.NS", "Apollo Hospitals"),
-    ("ASIANPAINT.NS", "Asian Paints"),
-    ("AXISBANK.NS",   "Axis Bank"),
-    ("BAJAJ-AUTO.NS", "Bajaj Auto"),
-    ("BAJAJFINSV.NS", "Bajaj Finserv"),
-    ("BAJFINANCE.NS", "Bajaj Finance"),
-    ("BEL.NS",        "Bharat Electronics"),
-    ("BHARTIARTL.NS", "Bharti Airtel"),
-    ("CIPLA.NS",      "Cipla"),
-    ("COALINDIA.NS",  "Coal India"),
-    ("DRREDDY.NS",    "Dr. Reddy's"),
-    ("EICHERMOT.NS",  "Eicher Motors"),
-    ("ETERNAL.NS",    "Eternal (Zomato)"),
-    ("GRASIM.NS",     "Grasim Industries"),
-    ("HCLTECH.NS",    "HCL Technologies"),
-    ("HDFCBANK.NS",   "HDFC Bank"),
-    ("HDFCLIFE.NS",   "HDFC Life Insurance"),
-    ("HINDALCO.NS",   "Hindalco Industries"),
-    ("HINDUNILVR.NS", "Hindustan Unilever"),
-    ("ICICIBANK.NS",  "ICICI Bank"),
-    ("INDIGO.NS",     "InterGlobe Aviation (IndiGo)"),
-    ("INFY.NS",       "Infosys"),
-    ("ITC.NS",        "ITC"),
-    ("JIOFIN.NS",     "Jio Financial Services"),
-    ("JSWSTEEL.NS",   "JSW Steel"),
-    ("KOTAKBANK.NS",  "Kotak Mahindra Bank"),
-    ("LT.NS",         "Larsen & Toubro"),
-    ("M&M.NS",        "Mahindra & Mahindra"),
-    ("MARUTI.NS",     "Maruti Suzuki"),
-    ("MAXHEALTH.NS",  "Max Healthcare"),
-    ("NESTLEIND.NS",  "Nestle India"),
-    ("NTPC.NS",       "NTPC"),
-    ("ONGC.NS",       "ONGC"),
-    ("POWERGRID.NS",  "Power Grid Corporation"),
-    ("RELIANCE.NS",   "Reliance Industries"),
-    ("SBILIFE.NS",    "SBI Life Insurance"),
-    ("SBIN.NS",       "State Bank of India"),
-    ("SHRIRAMFIN.NS", "Shriram Finance"),
-    ("SUNPHARMA.NS",  "Sun Pharmaceutical"),
-    ("TATACONSUM.NS", "Tata Consumer Products"),
-    ("TATASTEEL.NS",  "Tata Steel"),
-    ("TCS.NS",        "Tata Consultancy Services"),
-    ("TECHM.NS",      "Tech Mahindra"),
-    ("TITAN.NS",      "Titan Company"),
-    ("TMPV.NS",       "Tata Motors"),
-    ("TRENT.NS",      "Trent"),
-    ("ULTRACEMCO.NS", "UltraTech Cement"),
-    ("WIPRO.NS",      "Wipro"),
-]
-
-# Nifty Next 50 — stocks in Nifty 100 but not Nifty 50 (synced 2026-04-18)
-_NIFTY_NEXT_50 = [
-    ("ABB.NS",        "ABB India"),
-    ("ABCAPITAL.NS",  "Aditya Birla Capital"),
-    ("ALKEM.NS",      "Alkem Laboratories"),
-    ("AMBUJACEM.NS",  "Ambuja Cements"),
-    ("ATGL.NS",       "Adani Total Gas"),
-    ("BAJAJHLDNG.NS", "Bajaj Holdings"),
-    ("BALKRISIND.NS", "Balkrishna Industries"),
-    ("BANDHANBNK.NS", "Bandhan Bank"),
-    ("BERGEPAINT.NS", "Berger Paints India"),
-    ("BOSCHLTD.NS",   "Bosch"),
-    ("BRITANNIA.NS",  "Britannia Industries"),
-    ("CANBK.NS",      "Canara Bank"),
-    ("CHOLAFIN.NS",   "Cholamandalam Investment"),
-    ("COLPAL.NS",     "Colgate-Palmolive India"),
-    ("CUMMINSIND.NS", "Cummins India"),
-    ("DABUR.NS",      "Dabur India"),
-    ("DMART.NS",      "Avenue Supermarts (DMart)"),
-    ("DLF.NS",        "DLF"),
-    ("FEDERALBNK.NS", "Federal Bank"),
-    ("GODREJCP.NS",   "Godrej Consumer Products"),
-    ("GODREJPROP.NS", "Godrej Properties"),
-    ("HAVELLS.NS",    "Havells India"),
-    ("ICICIPRULI.NS", "ICICI Prudential Life"),
-    ("ICICIGI.NS",    "ICICI Lombard General Insurance"),
-    ("IDFCFIRSTB.NS", "IDFC First Bank"),
-    ("INDHOTEL.NS",   "Indian Hotels (Taj)"),
-    ("INDUSTOWER.NS", "Indus Towers"),
-    ("IOC.NS",        "Indian Oil Corporation"),
-    ("IRCTC.NS",      "IRCTC"),
-    ("JUBLFOOD.NS",   "Jubilant FoodWorks"),
-    ("LICI.NS",       "LIC India"),
-    ("LTIM.NS",       "LTIMindtree"),
-    ("LUPIN.NS",      "Lupin"),
-    ("MARICO.NS",     "Marico"),
-    ("MPHASIS.NS",    "Mphasis"),
-    ("NAUKRI.NS",     "Info Edge (Naukri)"),
-    ("NMDC.NS",       "NMDC"),
-    ("OFSS.NS",       "Oracle Financial Services"),
-    ("PAGEIND.NS",    "Page Industries"),
-    ("PERSISTENT.NS", "Persistent Systems"),
-    ("PFC.NS",        "Power Finance Corporation"),
-    ("PIIND.NS",      "PI Industries"),
-    ("PIDILITIND.NS", "Pidilite Industries"),
-    ("PNB.NS",        "Punjab National Bank"),
-    ("POLYCAB.NS",    "Polycab India"),
-    ("RECLTD.NS",     "REC Limited"),
-    ("SAIL.NS",       "Steel Authority of India"),
-    ("SIEMENS.NS",    "Siemens India"),
-    ("SRF.NS",        "SRF"),
-    ("TATACOMM.NS",   "Tata Communications"),
-]
-
-# Additional mid-caps for Nifty 200 (beyond Nifty 100)
-_NIFTY_MIDCAP_100 = [
-    ("AUROPHARMA.NS", "Aurobindo Pharma"),
-    ("AUBANK.NS",     "AU Small Finance Bank"),
-    ("BANKBARODA.NS", "Bank of Baroda"),
-    ("BATAINDIA.NS",  "Bata India"),
-    ("BIOCON.NS",     "Biocon"),
-    ("BPCL.NS",       "Bharat Petroleum"),
-    ("CAMS.NS",       "Computer Age Management Services"),
-    ("CDSL.NS",       "Central Depository Services"),
-    ("CEATLTD.NS",    "CEAT"),
-    ("COFORGE.NS",    "Coforge"),
-    ("CONCOR.NS",     "Container Corporation of India"),
-    ("CROMPTON.NS",   "Crompton Greaves Consumer"),
-    ("DEEPAKNTR.NS",  "Deepak Nitrite"),
-    ("DELHIVERY.NS",  "Delhivery"),
-    ("DIXON.NS",      "Dixon Technologies"),
-    ("ELGIEQUIP.NS",  "Elgi Equipments"),
-    ("EMAMILTD.NS",   "Emami"),
-    ("ESCORTS.NS",    "Escorts Kubota"),
-    ("EXIDEIND.NS",   "Exide Industries"),
-    ("FINEORG.NS",    "Fine Organic Industries"),
-    ("FORTIS.NS",     "Fortis Healthcare"),
-    ("GAIL.NS",       "GAIL India"),
-    ("GLENMARK.NS",   "Glenmark Pharmaceuticals"),
-    ("GMRINFRA.NS",   "GMR Infrastructure"),
-    ("GODREJIND.NS",  "Godrej Industries"),
-    ("GRANULES.NS",   "Granules India"),
-    ("HAPPSTMNDS.NS", "Happiest Minds Technologies"),
-    ("HINDCOPPER.NS", "Hindustan Copper"),
-    ("HINDPETRO.NS",  "Hindustan Petroleum"),
-    ("HONEYWELL.NS",  "Honeywell Automation"),
-    ("IPCALAB.NS",    "IPCA Laboratories"),
-    ("IRFC.NS",       "Indian Railway Finance Corp"),
-    ("JBCHEPHARM.NS", "JB Chemicals & Pharmaceuticals"),
-    ("JKCEMENT.NS",   "JK Cement"),
-    ("JSL.NS",        "Jindal Stainless"),
-    ("JSWENERGY.NS",  "JSW Energy"),
-    ("KALYANKJIL.NS", "Kalyan Jewellers"),
-    ("KPITTECH.NS",   "KPIT Technologies"),
-    ("LAURUSLABS.NS", "Laurus Labs"),
-    ("LICHSGFIN.NS",  "LIC Housing Finance"),
-    ("LINDEINDIA.NS", "Linde India"),
-    ("LTTS.NS",       "L&T Technology Services"),
-    ("MANAPPURAM.NS", "Manappuram Finance"),
-    ("MANYAVAR.NS",   "Vedant Fashions (Manyavar)"),
-    ("MAZDOCK.NS",    "Mazagon Dock Shipbuilders"),
-    ("METROPOLIS.NS", "Metropolis Healthcare"),
-    ("MOTILALOFS.NS", "Motilal Oswal Financial"),
-    ("MOTHERSON.NS",  "Samvardhana Motherson Intl"),
-    ("MUTHOOTFIN.NS", "Muthoot Finance"),
-    ("NATIONALUM.NS", "National Aluminium Company"),
-    ("NATCOPHARM.NS", "Natco Pharma"),
-    ("NAVINFLUOR.NS", "Navin Fluorine International"),
-    ("NYKAA.NS",      "Nykaa (FSN Ecommerce)"),
-    ("OBEROIRLTY.NS", "Oberoi Realty"),
-    ("PETRONET.NS",   "Petronet LNG"),
-    ("PGHH.NS",       "P&G Hygiene and Health Care"),
-    ("PHOENIXLTD.NS", "Phoenix Mills"),
-    ("POLICYBZR.NS",  "PB Fintech (Policybazaar)"),
-    ("RBLBANK.NS",    "RBL Bank"),
-    ("RAYMOND.NS",    "Raymond"),
-    ("ROUTE.NS",      "Route Mobile"),
-    ("SAPPHIRE.NS",   "Sapphire Foods India"),
-    ("SBICARD.NS",    "SBI Cards and Payment"),
-    ("SCHAEFFLER.NS", "Schaeffler India"),
-    ("SJVN.NS",       "SJVN"),
-    ("SOLARINDS.NS",  "Solar Industries India"),
-    ("SONATSOFTW.NS", "Sonata Software"),
-    ("SUPREMEIND.NS", "Supreme Industries"),
-    ("SYNGENE.NS",    "Syngene International"),
-    ("TATACHEM.NS",   "Tata Chemicals"),
-    ("TATAELXSI.NS",  "Tata Elxsi"),
-    ("TATAPOWER.NS",  "Tata Power"),
-    ("TIINDIA.NS",    "Tube Investments of India"),
-    ("TORNTPHARM.NS", "Torrent Pharmaceuticals"),
-    ("TORNTPOWER.NS", "Torrent Power"),
-    ("TVSMOTOR.NS",   "TVS Motor Company"),
-    ("UNIONBANK.NS",  "Union Bank of India"),
-    ("VGUARD.NS",     "V-Guard Industries"),
-    ("VEDL.NS",       "Vedanta"),
-    ("VOLTAS.NS",     "Voltas"),
-    ("ZYDUSLIFE.NS",  "Zydus Lifesciences"),
-]
-
-# Additional stocks for Nifty 500 coverage (beyond Nifty 200)
-_NIFTY_SMALLMID_300 = [
-    ("AARTIIND.NS",   "Aarti Industries"),
-    ("ABBOTINDIA.NS", "Abbott India"),
-    ("ABFRL.NS",      "Aditya Birla Fashion"),
-    ("AIAENG.NS",     "AIA Engineering"),
-    ("AJANTPHRM.NS",  "Ajanta Pharma"),
-    ("ANGELONE.NS",   "Angel One"),
-    ("APLAPOLLO.NS",  "APL Apollo Tubes"),
-    ("APOLLOTYRE.NS", "Apollo Tyres"),
-    ("ASTRAL.NS",     "Astral"),
-    ("BAJAJELEC.NS",  "Bajaj Electricals"),
-    ("BAJAJCON.NS",   "Bajaj Consumer Care"),
-    ("BBTC.NS",       "Bombay Burmah Trading"),
-    ("BEML.NS",       "BEML"),
-    ("BLUEDART.NS",   "Blue Dart Express"),
-    ("BRIGADE.NS",    "Brigade Enterprises"),
-    ("BSE.NS",        "BSE"),
-    ("CANFINHOME.NS", "Can Fin Homes"),
-    ("CARBORUNIV.NS", "Carborundum Universal"),
-    ("CASTROLIND.NS", "Castrol India"),
-    ("CCL.NS",        "CCL Products India"),
-    ("CENTRALBK.NS",  "Central Bank of India"),
-    ("CENTURYTEX.NS", "Century Textiles"),
-    ("CERA.NS",       "Cera Sanitaryware"),
-    ("CHALET.NS",     "Chalet Hotels"),
-    ("CHAMBLFERT.NS", "Chambal Fertilisers"),
-    ("CLEAN.NS",      "Clean Science and Technology"),
-    ("COALINDIA.NS",  "Coal India"),
-    ("CRAFTSMAN.NS",  "Craftsman Automation"),
-    ("CYIENT.NS",     "Cyient"),
-    ("DATAMATICS.NS", "Datamatics Global Services"),
-    ("DBREALTY.NS",   "D B Realty"),
-    ("DCMSHRIRAM.NS", "DCM Shriram"),
-    ("DEVYANI.NS",    "Devyani International"),
-    ("DHANI.NS",      "Indiabulls Consumer Finance"),
-    ("EASEMYTRIP.NS", "Easy Trip Planners"),
-    ("EIDPARRY.NS",   "EID Parry India"),
-    ("ENDURANCE.NS",  "Endurance Technologies"),
-    ("EPL.NS",        "EPL (Essel Propack)"),
-    ("EQUITASBNK.NS", "Equitas Small Finance Bank"),
-    ("ESAB.NS",       "ESAB India"),
-    ("FAIRCHEMORG.NS","Fairchem Organics"),
-    ("GICRE.NS",      "General Insurance Corp"),
-    ("GLAND.NS",      "Gland Pharma"),
-    ("GLAXO.NS",      "GSK Pharmaceuticals India"),
-    ("GNFC.NS",       "Gujarat Narmada Valley Fert"),
-    ("GODFRYPHLP.NS", "Godfrey Phillips India"),
-    ("GRAPHITE.NS",   "Graphite India"),
-    ("GSFC.NS",       "Gujarat State Fertilizers"),
-    ("GSPL.NS",       "Gujarat State Petronet"),
-    ("GULFOILLUB.NS", "Gulf Oil Lubricants"),
-    ("HBL.NS",        "HBL Power Systems"),
-    ("HFCL.NS",       "HFCL"),
-    ("HIKAL.NS",      "Hikal"),
-    ("HSCL.NS",       "Himadri Speciality Chemical"),
-    ("IBREALEST.NS",  "Indiabulls Real Estate"),
-    ("IDBI.NS",       "IDBI Bank"),
-    ("IIFL.NS",       "IIFL Finance"),
-    ("INOXWIND.NS",   "Inox Wind"),
-    ("IOB.NS",        "Indian Overseas Bank"),
-    ("IREDA.NS",      "Indian Renewable Energy Dev"),
-    ("ITC.NS",        "ITC"),
-    ("ITDC.NS",       "India Tourism Development Corp"),
-    ("JAMNAAUTO.NS",  "Jamna Auto Industries"),
-    ("JKIL.NS",       "J Kumar Infraprojects"),
-    ("JKPAPER.NS",    "JK Paper"),
-    ("JMFINANCIL.NS", "JM Financial"),
-    ("JUBLINGREA.NS", "Jubilant Ingrevia"),
-    ("KANSAINER.NS",  "Kansai Nerolac Paints"),
-    ("KFINTECH.NS",   "KFin Technologies"),
-    ("KIRLOSENG.NS",  "Kirloskar Electric"),
-    ("KNR.NS",        "KNR Constructions"),
-    ("KRBL.NS",       "KRBL"),
-    ("KSCL.NS",       "Kaveri Seed Company"),
-    ("LALPATHLAB.NS", "Dr Lal PathLabs"),
-    ("LATENTVIEW.NS", "Latent View Analytics"),
-    ("LEMONTREE.NS",  "Lemon Tree Hotels"),
-    ("LUXIND.NS",     "Lux Industries"),
-    ("MAHLIFE.NS",    "Mahindra Lifespace Developers"),
-    ("MAHLOG.NS",     "Mahindra Logistics"),
-    ("MAPMYINDIA.NS", "CE Info Systems (MapmyIndia)"),
-    ("MEDANTA.NS",    "Global Health (Medanta)"),
-    ("MIDHANI.NS",    "Mishra Dhatu Nigam"),
-    ("MMTC.NS",       "MMTC"),
-    ("MOIL.NS",       "MOIL"),
-    ("MRPL.NS",       "Mangalore Refinery"),
-    ("NACLIND.NS",    "NACL Industries"),
-    ("NIACL.NS",      "New India Assurance"),
-    ("NIITLTD.NS",    "NIIT Learning Systems"),
-    ("NLC.NS",        "NLC India"),
-    ("NUVOCO.NS",     "Nuvoco Vistas Corp"),
-    ("OLECTRA.NS",    "Olectra Greentech"),
-    ("ORIENTCEM.NS",  "Orient Cement"),
-    ("ORIENTELEC.NS", "Orient Electric"),
-    ("PATELENG.NS",   "Patel Engineering"),
-    ("PATANJALI.NS",  "Patanjali Foods"),
-    ("PCBL.NS",       "PCBL (Phillips Carbon Black)"),
-    ("PFIZER.NS",     "Pfizer India"),
-    ("PGEL.NS",       "PG Electroplast"),
-    ("PNCINFRA.NS",   "PNC Infratech"),
-    ("POLYMED.NS",    "Poly Medicure"),
-    ("POONAWALLA.NS", "Poonawalla Fincorp"),
-    ("PRIMESECU.NS",  "Prime Securities"),
-    ("PRINCEPIPE.NS", "Prince Pipes and Fittings"),
-    ("RAIN.NS",       "Rain Industries"),
-    ("RAILTEL.NS",    "RailTel Corporation"),
-    ("RAJESHEXPO.NS", "Rajesh Exports"),
-    ("RITES.NS",      "RITES"),
-    ("RKFORGE.NS",    "Ramkrishna Forgings"),
-    ("ROSSARI.NS",    "Rossari Biotech"),
-    ("SAREGAMA.NS",   "Saregama India"),
-    ("SBICARD.NS",    "SBI Cards"),
-    ("SHYAMMETL.NS",  "Shyam Metalics"),
-    ("SIGNATURE.NS",  "Signatureglobal India"),
-    ("SKIPPER.NS",    "Skipper"),
-    ("SOBHA.NS",      "Sobha"),
-    ("SOLARA.NS",     "Solara Active Pharma"),
-    ("SPARC.NS",      "Sun Pharma Advanced Research"),
-    ("SPENCERS.NS",   "Spencer's Retail"),
-    ("STLTECH.NS",    "Sterlite Technologies"),
-    ("SUBROS.NS",     "Subros"),
-    ("SUMICHEM.NS",   "Sumitomo Chemical India"),
-    ("SUNDARMFIN.NS", "Sundaram Finance"),
-    ("SUNDRMFAST.NS", "Sundram Fasteners"),
-    ("SUVEN.NS",      "Suven Pharmaceuticals"),
-    ("TANLA.NS",      "Tanla Platforms"),
-    ("TATAINVEST.NS", "Tata Investment Corporation"),
-    ("TECHNOELEC.NS", "Techno Electric & Engineering"),
-    ("TITAGARH.NS",   "Titagarh Rail Systems"),
-    ("TRIVENI.NS",    "Triveni Engineering"),
-    ("UCOBANK.NS",    "UCO Bank"),
-    ("UJJIVANSFB.NS", "Ujjivan Small Finance Bank"),
-    ("UTIAMC.NS",     "UTI Asset Management"),
-    ("VAIBHAVGBL.NS", "Vaibhav Global"),
-    ("VALIANTLAB.NS", "Valiant Laboratories"),
-    ("VBL.NS",        "Varun Beverages"),
-    ("VEDL.NS",       "Vedanta"),
-    ("VENKEYS.NS",    "Venky's India"),
-    ("VIJAYA.NS",     "Vijaya Diagnostics Centre"),
-    ("VTL.NS",        "Vardhman Textiles"),
-    ("WELCORP.NS",    "Welspun Corp"),
-    ("WELSPUNLIV.NS", "Welspun Living"),
-    ("WHIRLPOOL.NS",  "Whirlpool of India"),
-    ("WOCKPHARMA.NS", "Wockhardt"),
-    ("ZEEL.NS",       "Zee Entertainment"),
-    ("ZENSARTECH.NS", "Zensar Technologies"),
-    ("ZENTEC.NS",     "Zen Technologies"),
-]
-
-# Deduplicate and build cumulative index lists
-def _dedup(lst: list) -> list:
-    seen: set = set()
-    out = []
-    for item in lst:
-        if item[0] not in seen:
-            seen.add(item[0])
-            out.append(item)
-    return out
-
-NIFTY_100  = _dedup(NIFTY_50 + _NIFTY_NEXT_50)
-NIFTY_200  = _dedup(NIFTY_100 + _NIFTY_MIDCAP_100)
-NIFTY_500  = _dedup(NIFTY_200 + _NIFTY_SMALLMID_300)
-
-STOCK_LISTS: dict[str, list] = {
-    "NIFTY50":  NIFTY_50,
-    "NIFTY100": NIFTY_100,
-    "NIFTY200": NIFTY_200,
-    "NIFTY500": NIFTY_500,
-}
 
 _INDICES = [
     {"key": "NIFTY50",   "ticker": "^NSEI",   "name": "NIFTY 50"},
@@ -464,20 +101,27 @@ async def get_ohlcv(
     cache_key = f"ohlcv:{ticker}:{interval}:{period}:ind={int(with_indicators)}"
 
     try:
-        from tools.fetch_stock_data import fetch_ohlcv
-
-        def _fetch():
-            df = fetch_ohlcv(ticker, interval, period)
+        async def _fetch():
+            if interval == "1d":
+                from services.daily_data import get_daily_df
+                df = (await get_daily_df(ticker, period)).copy()
+            else:
+                from tools.fetch_stock_data import fetch_ohlcv
+                df = await asyncio.to_thread(fetch_ohlcv, ticker, interval, period)
             if with_indicators:
                 from tools.compute_indicators import (
                     compute_emas, compute_bollinger, compute_rsi,
                     compute_macd, compute_obv,
                 )
-                df = compute_emas(df, [9, 21, 50, 200])
-                df = compute_bollinger(df, period=20, std=2.0)
-                df = compute_rsi(df, period=14)
-                df = compute_macd(df)
-                df = compute_obv(df)
+
+                def _ind(d):
+                    d = compute_emas(d, [9, 21, 50, 200])
+                    d = compute_bollinger(d, period=20, std=2.0)
+                    d = compute_rsi(d, period=14)
+                    d = compute_macd(d)
+                    return compute_obv(d)
+
+                df = await asyncio.to_thread(_ind, df)
             return df
 
         df = await cached(cache_key, ttl=adaptive_ttl(300), fn=_fetch)
@@ -599,14 +243,17 @@ async def get_signal(
     cache_key = f"signal:{ticker}:{interval}:{period}"
 
     try:
-        from tools.fetch_stock_data import fetch_ohlcv
+        from services.daily_data import get_daily_df
         from tools.compute_indicators import compute_all
         from tools.generate_signals import generate_signal
 
-        def _compute():
-            df = fetch_ohlcv(ticker, interval, period)
-            df = compute_all(df)
-            return generate_signal(df)
+        async def _compute():
+            if interval == "1d":
+                df = await get_daily_df(ticker, period)
+            else:
+                from tools.fetch_stock_data import fetch_ohlcv
+                df = await asyncio.to_thread(fetch_ohlcv, ticker, interval, period)
+            return await asyncio.to_thread(lambda: generate_signal(compute_all(df.copy())))
 
         signal = await cached(cache_key, ttl=adaptive_ttl(300), fn=_compute)
     except ValueError as e:
@@ -631,6 +278,30 @@ async def scan_stocks(
     """Batch technical signal scan. Supports NIFTY50/100/200/500 via ?index=. Cached 10 min per index."""
     stock_list = STOCK_LISTS[index]
     cache_key = f"scan:{index.lower()}"
+
+    # When the market is closed, serve the nightly precomputed scan — instant,
+    # zero upstream calls. The live scan path only runs during trading hours.
+    if not is_market_open():
+        try:
+            from tools import price_store
+            pre = await asyncio.to_thread(price_store.get_scan, index)
+            if pre and pre.get("payload"):
+                computed_at = pre.get("computed_at")
+                age_ok = True
+                if computed_at:
+                    from datetime import datetime, timedelta, timezone
+                    dt = datetime.fromisoformat(computed_at.replace("Z", "+00:00"))
+                    age_ok = datetime.now(timezone.utc) - dt < timedelta(days=4)
+                if age_ok:
+                    return {
+                        "stocks": pre["payload"],
+                        "count": len(pre["payload"]),
+                        "index": index,
+                        "precomputed": True,
+                        "computed_at": computed_at,
+                    }
+        except Exception as e:
+            log.warning("precomputed scan unavailable for %s: %s", index, e)
 
     async def _do_scan():
         from tools.fetch_stock_data import fetch_ohlcv, fetch_yfinance_bulk

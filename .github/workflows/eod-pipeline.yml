@@ -1,0 +1,27 @@
+name: EOD price pipeline
+
+on:
+  schedule:
+    - cron: "45 10 * * 1-5"   # 16:15 IST — after NSE close (15:30 IST)
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: "Full 5y backfill (first run / repair)"
+        type: boolean
+        default: false
+
+jobs:
+  eod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tools/requirements-pipeline.txt
+      - name: Run pipeline
+        run: python tools/eod_pipeline.py ${{ inputs.backfill == true && '--backfill' || '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
