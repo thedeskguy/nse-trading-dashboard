@@ -279,9 +279,12 @@ async def scan_stocks(
     stock_list = STOCK_LISTS[index]
     cache_key = f"scan:{index.lower()}"
 
-    # When the market is closed, serve the nightly precomputed scan — instant,
-    # zero upstream calls. The live scan path only runs during trading hours.
-    if not is_market_open():
+    # Serve the nightly precomputed scan — instant, zero upstream calls —
+    # whenever the market is closed, and ALWAYS for the big indices: a live
+    # 200/500-ticker bulk download takes minutes on the free instance and
+    # times out. The live path only runs for NIFTY50/100 during trading hours.
+    _PRECOMPUTED_ALWAYS = {"NIFTY200", "NIFTY500"}
+    if not is_market_open() or index in _PRECOMPUTED_ALWAYS:
         try:
             from tools import price_store
             pre = await asyncio.to_thread(price_store.get_scan, index)

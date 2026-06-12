@@ -35,3 +35,26 @@ def test_scan_returns_precomputed_when_market_closed(monkeypatch):
         assert body["index"] == "NIFTY50"
     finally:
         main.app.dependency_overrides.clear()
+
+
+def test_big_index_precomputed_even_when_market_open(monkeypatch):
+    """A live 500-ticker scan times out on the free instance — NIFTY200/500
+    must serve the precomputed payload even during trading hours."""
+    main.app.dependency_overrides[verify_supabase_jwt] = lambda: {"user_id": "u1", "email": "t@t.t"}
+    try:
+        monkeypatch.setattr(market, "is_market_open", lambda: True)
+        payload = [{"ticker": "RELIANCE.NS", "name": "Reliance", "signal": "HOLD",
+                    "confidence": 55, "last_price": 2900.0, "change_pct": 0.4}]
+        monkeypatch.setattr(
+            price_store, "get_scan",
+            lambda idx: {"payload": payload,
+                         "computed_at": datetime.now(timezone.utc).isoformat()},
+        )
+        client = TestClient(main.app)
+        res = client.get("/api/v1/market/scan?index=NIFTY500")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["precomputed"] is True
+        assert body["index"] == "NIFTY500"
+    finally:
+        main.app.dependency_overrides.clear()
