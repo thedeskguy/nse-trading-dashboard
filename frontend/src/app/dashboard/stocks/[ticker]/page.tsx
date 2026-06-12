@@ -8,7 +8,6 @@ import { TradingChart } from "@/components/trading-chart";
 import { SignalCard } from "@/components/analysis/SignalCard";
 import { IndicatorBreakdown } from "@/components/analysis/IndicatorBreakdown";
 import { FundamentalsPanel } from "@/components/analysis/FundamentalsPanel";
-import { FundamentalsBreakdown } from "@/components/analysis/FundamentalsBreakdown";
 import { MLPredictionCard } from "@/components/analysis/MLPredictionCard";
 import { VerdictBanner, classifyVerdict, type Verdict } from "@/components/analysis/VerdictBanner";
 import { useSignal, useCompanyInfo } from "@/lib/api/market";
@@ -245,10 +244,8 @@ function TickerDashboard({ ticker }: { ticker: string }) {
               <FundamentalsPanel
                 data={fundamentals.fundamentals}
                 ticker={ticker}
+                breakdown={fundamentals.breakdown}
               />
-              {fundamentals.breakdown && (
-                <FundamentalsBreakdown breakdown={fundamentals.breakdown} />
-              )}
             </>
           ) : (
             <ErrorCard className="h-32" />
