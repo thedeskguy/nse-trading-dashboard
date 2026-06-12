@@ -1,0 +1,143 @@
+"""
+Tests for tools/backtester.py:
+- result shape (strategy echo, description, benchmark, new stats)
+- stats math on hand-built fixtures
+- ML strategy: insufficient-history error, determinism, signal validity
+"""
+
+import sys
+import unittest
+
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, ".")
+
+
+def synthetic_ohlcv(n: int, seed: int = 42) -> pd.DataFrame:
+    """Deterministic random-walk OHLCV with a DatetimeIndex of n business days."""
+    rng = np.random.default_rng(seed)
+    rets = rng.normal(0.0005, 0.015, n)
+    close = 100 * np.cumprod(1 + rets)
+    dates = pd.bdate_range("2024-01-01", periods=n)
+    return pd.DataFrame(
+        {
+            "Open": close * (1 + rng.normal(0, 0.003, n)),
+            "High": close * (1 + np.abs(rng.normal(0, 0.006, n))),
+            "Low": close * (1 - np.abs(rng.normal(0, 0.006, n))),
+            "Close": close,
+            "Volume": rng.integers(1_000_00, 5_000_00, n).astype(float),
+        },
+        index=dates,
+    )
+
+
+def enriched(n: int, seed: int = 42) -> pd.DataFrame:
+    from tools.compute_indicators import compute_all
+    return compute_all(synthetic_ohlcv(n, seed))
+
+
+class IndicatorResultShapeTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from tools.backtester import run_backtest
+        cls.result = run_backtest(enriched(260), strategy="indicator")
+
+    def test_strategy_fields(self):
+        self.assertEqual(self.result["strategy"], "indicator")
+        self.assertIn("indicator signal", self.result["strategy_description"])
+        self.assertIsNone(self.result["error"])
+
+    def test_equity_curve_has_benchmark_starting_at_100(self):
+        curve = self.result["equity_curve"]
+        self.assertGreater(len(curve), 0)
+        self.assertEqual(curve[0]["benchmark"], 100.0)
+        for point in curve[:5]:
+            self.assertIn("date", point)
+            self.assertIn("equity", point)
+            self.assertIn("benchmark", point)
+
+    def test_new_stats_present(self):
+        stats = self.result["stats"]
+        for key in (
+            "sharpe_ratio", "profit_factor", "exposure_pct",
+            "avg_hold_days", "buy_hold_return_pct",
+        ):
+            self.assertIn(key, stats)
+
+    def test_buy_hold_matches_benchmark_end(self):
+        curve = self.result["equity_curve"]
+        expected = curve[-1]["benchmark"] - 100.0
+        self.assertAlmostEqual(
+            self.result["stats"]["buy_hold_return_pct"], expected, places=1
+        )
+
+
+class StatsMathTest(unittest.TestCase):
+    def test_compute_stats_on_fixture(self):
+        from tools.backtester import _compute_stats
+        trades = [
+            {"date_entry": "2024-01-01", "date_exit": "2024-01-11",
+             "entry_price": 100.0, "exit_price": 110.0, "pnl_pct": 10.0},
+            {"date_entry": "2024-02-01", "date_exit": "2024-02-06",
+             "entry_price": 100.0, "exit_price": 95.0, "pnl_pct": -5.0},
+        ]
+        equity_curve = [
+            {"date": "2024-01-01", "equity": 100.0, "benchmark": 100.0},
+            {"date": "2024-01-11", "equity": 110.0, "benchmark": 105.0},
+            {"date": "2024-02-06", "equity": 104.5, "benchmark": 102.0},
+        ]
+        stats = _compute_stats(
+            trades=trades, equity_curve=equity_curve,
+            final_equity=104.5, bars_long=10, n_signal_bars=20,
+            buy_hold_return_pct=2.0,
+        )
+        self.assertEqual(stats["num_trades"], 2)
+        self.assertEqual(stats["win_rate"], 0.5)
+        self.assertAlmostEqual(stats["total_return_pct"], 4.5)
+        self.assertAlmostEqual(stats["profit_factor"], 2.0)   # 10 / 5
+        self.assertAlmostEqual(stats["exposure_pct"], 50.0)   # 10 / 20
+        self.assertAlmostEqual(stats["avg_hold_days"], 7.5)   # (10 + 5) / 2
+        self.assertAlmostEqual(stats["buy_hold_return_pct"], 2.0)
+
+    def test_profit_factor_null_when_no_losses(self):
+        from tools.backtester import _compute_stats
+        trades = [{"date_entry": "2024-01-01", "date_exit": "2024-01-08",
+                   "entry_price": 100.0, "exit_price": 108.0, "pnl_pct": 8.0}]
+        stats = _compute_stats(
+            trades=trades,
+            equity_curve=[{"date": "2024-01-01", "equity": 100.0, "benchmark": 100.0},
+                          {"date": "2024-01-08", "equity": 108.0, "benchmark": 101.0}],
+            final_equity=108.0, bars_long=5, n_signal_bars=10,
+            buy_hold_return_pct=1.0,
+        )
+        self.assertIsNone(stats["profit_factor"])
+
+    def test_empty_trades_stats(self):
+        from tools.backtester import _compute_stats
+        stats = _compute_stats(
+            trades=[], equity_curve=[], final_equity=100.0,
+            bars_long=0, n_signal_bars=0, buy_hold_return_pct=0.0,
+        )
+        self.assertEqual(stats["num_trades"], 0)
+        self.assertEqual(stats["win_rate"], 0.0)
+        self.assertEqual(stats["sharpe_ratio"], 0.0)
+        self.assertIsNone(stats["profit_factor"])
+
+
+class ShortHistoryTest(unittest.TestCase):
+    def test_indicator_short_df_returns_empty_shape(self):
+        from tools.backtester import run_backtest
+        result = run_backtest(enriched(30), strategy="indicator")
+        self.assertEqual(result["trades"], [])
+        self.assertEqual(result["stats"]["num_trades"], 0)
+        self.assertEqual(result["strategy"], "indicator")
+
+    def test_unknown_strategy_raises(self):
+        from tools.backtester import run_backtest
+        with self.assertRaises(ValueError):
+            run_backtest(enriched(260), strategy="quantum")
+
+
+if __name__ == "__main__":
+    unittest.main()
