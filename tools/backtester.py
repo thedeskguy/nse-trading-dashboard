@@ -91,9 +91,11 @@ def _ml_signals(df: pd.DataFrame, warmup: int) -> list[str]:
 
         classes = list(model.classes_)
         if len(classes) == 1:
-            p_up = float(classes[0])  # degenerate single-class training window
-        else:
-            p_up = float(model.predict_proba(row)[0][classes.index(1)])
+            # One-class training window: the model can't estimate P(up), so
+            # don't trade on it — emit HOLD until the next retrain.
+            signals.append("HOLD")
+            continue
+        p_up = float(model.predict_proba(row)[0][classes.index(1)])
 
         if p_up >= 0.55:
             signals.append("BUY")

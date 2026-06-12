@@ -188,6 +188,25 @@ class MLStrategyTest(unittest.TestCase):
         self.assertEqual(len(signals), len(df) - ML_WARMUP)
         self.assertTrue(set(signals) <= {"BUY", "SELL", "HOLD"})
 
+    def test_single_class_window_emits_hold(self):
+        from unittest.mock import patch
+
+        from tools.backtester import ML_WARMUP, _ml_signals
+
+        class OneClassModel:
+            classes_ = [1]
+
+            def fit(self, X, y):
+                return self
+
+            def predict_proba(self, X):  # pragma: no cover — must not be called
+                raise AssertionError("predict_proba should not be called for one-class model")
+
+        df = enriched(150)
+        with patch("sklearn.ensemble.RandomForestClassifier", return_value=OneClassModel()):
+            signals = _ml_signals(df, ML_WARMUP)
+        self.assertTrue(all(s == "HOLD" for s in signals))
+
 
 if __name__ == "__main__":
     unittest.main()
