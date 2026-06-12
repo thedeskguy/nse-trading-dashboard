@@ -38,7 +38,9 @@ def fetch(filename: str) -> list[tuple[str, str]]:
     for r in rows:
         symbol = (r.get("Symbol") or "").strip()
         name = (r.get("Company Name") or "").strip()
-        if symbol and name:
+        # NSE inserts DUMMY* placeholder rows during demergers (e.g. DUMMYVEDL1)
+        # for entities that haven't listed yet — they have no tradable data.
+        if symbol and name and not symbol.startswith("DUMMY"):
             out.append((f"{symbol}.NS", name))
     return out
 
