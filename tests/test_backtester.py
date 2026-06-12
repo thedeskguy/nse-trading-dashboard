@@ -159,5 +159,35 @@ class ShortHistoryTest(unittest.TestCase):
             run_backtest(enriched(260), strategy="quantum")
 
 
+class MLStrategyTest(unittest.TestCase):
+    def test_insufficient_history_returns_error(self):
+        from tools.backtester import ML_WARMUP, RETRAIN_EVERY, run_backtest
+        n_short = ML_WARMUP + RETRAIN_EVERY - 1
+        result = run_backtest(enriched(n_short), strategy="ml")
+        self.assertIsNotNone(result["error"])
+        self.assertIn("ML backtest", result["error"])
+        self.assertEqual(result["trades"], [])
+        self.assertEqual(result["strategy"], "ml")
+
+    def test_ml_backtest_runs_and_is_deterministic(self):
+        from tools.backtester import run_backtest
+        df = enriched(300)
+        r1 = run_backtest(df, strategy="ml")
+        r2 = run_backtest(df, strategy="ml")
+        self.assertIsNone(r1["error"])
+        self.assertEqual(r1["strategy"], "ml")
+        self.assertIn("RandomForest", r1["strategy_description"])
+        self.assertGreater(len(r1["equity_curve"]), 0)
+        self.assertEqual(r1["trades"], r2["trades"])              # random_state=42
+        self.assertEqual(r1["equity_curve"], r2["equity_curve"])
+
+    def test_ml_signals_cover_all_post_warmup_bars(self):
+        from tools.backtester import ML_WARMUP, _ml_signals
+        df = enriched(300)
+        signals = _ml_signals(df, ML_WARMUP)
+        self.assertEqual(len(signals), len(df) - ML_WARMUP)
+        self.assertTrue(set(signals) <= {"BUY", "SELL", "HOLD"})
+
+
 if __name__ == "__main__":
     unittest.main()
