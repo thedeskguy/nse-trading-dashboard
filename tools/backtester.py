@@ -39,7 +39,7 @@ def _empty_result(strategy: str, error: str | None = None) -> dict:
         "equity_curve": [],
         "stats": _compute_stats([], [], 100.0, 0, 0, 0.0),
         "strategy": strategy,
-        "strategy_description": STRATEGY_DESCRIPTIONS[strategy],
+        "strategy_description": STRATEGY_DESCRIPTIONS.get(strategy, f"Unknown strategy: {strategy}"),
         "error": error,
     }
 
@@ -114,14 +114,16 @@ def _compute_stats(
 ) -> dict:
     num_trades = len(trades)
     wins = [t for t in trades if t["pnl_pct"] > 0]
+    # Breakeven trades count as losses (win_rate is strict), matching the original engine.
     losses = [t for t in trades if t["pnl_pct"] <= 0]
 
     eq = np.array([p["equity"] for p in equity_curve], dtype=float)
-    if len(eq) >= 3 and np.std(np.diff(eq) / eq[:-1]) > 0:
+    sharpe = 0.0
+    if len(eq) >= 3 and not np.any(eq[:-1] == 0):
         rets = np.diff(eq) / eq[:-1]
-        sharpe = round(float(np.mean(rets) / np.std(rets) * np.sqrt(252)), 2)
-    else:
-        sharpe = 0.0
+        std = np.std(rets)
+        if std > 0:
+            sharpe = round(float(np.mean(rets) / std * np.sqrt(252)), 2)
 
     gross_gain = sum(t["pnl_pct"] for t in wins)
     gross_loss = abs(sum(t["pnl_pct"] for t in losses))

@@ -124,6 +124,26 @@ class StatsMathTest(unittest.TestCase):
         self.assertEqual(stats["sharpe_ratio"], 0.0)
         self.assertIsNone(stats["profit_factor"])
 
+    def test_sharpe_and_drawdown_numeric(self):
+        from tools.backtester import _compute_stats
+        equity_curve = [
+            {"date": "2024-01-01", "equity": 100.0, "benchmark": 100.0},
+            {"date": "2024-01-02", "equity": 105.0, "benchmark": 101.0},
+            {"date": "2024-01-03", "equity": 102.0, "benchmark": 102.0},
+            {"date": "2024-01-04", "equity": 108.0, "benchmark": 103.0},
+        ]
+        stats = _compute_stats(
+            trades=[], equity_curve=equity_curve, final_equity=108.0,
+            bars_long=4, n_signal_bars=4, buy_hold_return_pct=3.0,
+        )
+        # Daily returns: +5%, -2.857%, +5.882% → mean/std × √252, rounded to 2dp
+        rets = [0.05, -2.0 / 70.0, 6.0 / 102.0]
+        import numpy as np
+        expected_sharpe = round(float(np.mean(rets) / np.std(rets) * np.sqrt(252)), 2)
+        self.assertAlmostEqual(stats["sharpe_ratio"], expected_sharpe, places=2)
+        # Peak 105 → trough 102 = -2.857%
+        self.assertAlmostEqual(stats["max_drawdown_pct"], -2.86, places=2)
+
 
 class ShortHistoryTest(unittest.TestCase):
     def test_indicator_short_df_returns_empty_shape(self):
