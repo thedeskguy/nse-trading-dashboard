@@ -21,6 +21,8 @@ export interface MLResponse {
   probability: number;
   accuracy: number;
   feature_importance: Record<string, number>;
+  train_samples?: number;
+  test_samples?: number;
   error: string | null;
 }
 
@@ -91,20 +93,35 @@ export interface BacktestStats {
   avg_gain_pct: number;
   avg_loss_pct: number;
   max_drawdown_pct: number;
+  sharpe_ratio: number;
+  profit_factor: number | null;
+  exposure_pct: number;
+  avg_hold_days: number;
+  buy_hold_return_pct: number;
 }
+
+export type BacktestStrategy = "indicator" | "ml";
 
 export interface BacktestResponse {
   ticker: string;
   trades: BacktestTrade[];
-  equity_curve: Array<{ date: string; equity: number }>;
+  equity_curve: Array<{ date: string; equity: number; benchmark: number }>;
   stats: BacktestStats;
+  strategy: BacktestStrategy;
+  strategy_description: string;
+  error: string | null;
 }
 
-export function useBacktest(ticker: string, period = "1y", enabled = true) {
+export function useBacktest(
+  ticker: string,
+  period = "1y",
+  strategy: BacktestStrategy = "indicator",
+  enabled = true,
+) {
   return useQuery({
-    queryKey: ["backtest", ticker, period],
+    queryKey: ["backtest", ticker, period, strategy],
     queryFn: () =>
-      apiFetch<BacktestResponse>("/api/v1/analysis/backtest", { ticker, period }),
+      apiFetch<BacktestResponse>("/api/v1/analysis/backtest", { ticker, period, strategy }),
     staleTime: 6 * 60 * 60 * 1000,
     enabled: !!ticker && enabled,
   });

@@ -192,6 +192,21 @@ Target: next-day direction (up/down). No paid APIs — uses `scikit-learn` only.
 
 ---
 
+## Backtesting
+
+`/api/v1/analysis/backtest?ticker=…&period=6mo|1y|2y&strategy=indicator|ml` runs a
+walk-forward, long-only backtest on daily OHLCV (close-price fills, no look-ahead):
+
+- **indicator** (default) — trades the composite technical signal (RSI, MACD, EMA trend,
+  Bollinger, S/R, OBV); BUY > 60 to enter, SELL < 40 to exit.
+- **ml** — trades a RandomForest next-day direction model retrained every 21 bars
+  walk-forward; enters at P(up) ≥ 55%, exits at P(up) ≤ 45%. Needs ≥ ~141 daily bars.
+
+The response includes a buy-&-hold benchmark series and stats: total return, win rate,
+avg gain/loss, max drawdown, Sharpe, profit factor, exposure %, avg holding days.
+
+---
+
 ## Options Recommendation Logic
 
 | Parameter | Intraday | Positional |

@@ -8,13 +8,15 @@ import { TradingChart } from "@/components/trading-chart";
 import { SignalCard } from "@/components/analysis/SignalCard";
 import { IndicatorBreakdown } from "@/components/analysis/IndicatorBreakdown";
 import { FundamentalsPanel } from "@/components/analysis/FundamentalsPanel";
-import { FundamentalsBreakdown } from "@/components/analysis/FundamentalsBreakdown";
 import { MLPredictionCard } from "@/components/analysis/MLPredictionCard";
 import { VerdictBanner, classifyVerdict, type Verdict } from "@/components/analysis/VerdictBanner";
 import { useSignal, useCompanyInfo } from "@/lib/api/market";
 import { useFundamentals, useMLPredict, useConfluence } from "@/lib/api/analysis";
 import { ConfluenceGrid, ConfluenceGridSkeleton, ConfluenceGridError } from "@/components/analysis/ConfluenceGrid";
 import { BacktestPanel } from "@/components/analysis/BacktestPanel";
+import { MethodologyNote } from "@/components/analysis/MethodologyNote";
+import { SystemsStrip } from "@/components/analysis/SystemsStrip";
+import type { BacktestStrategy } from "@/lib/api/analysis";
 import { useWebSocketQuote } from "@/lib/api/websocket";
 import { AlertCircle, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
 import { DataFreshness } from "@/components/ui/DataFreshness";
@@ -40,6 +42,11 @@ function TickerDashboard({ ticker }: { ticker: string }) {
 
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("technical");
+  const [backtestStrategy, setBacktestStrategy] = useState<BacktestStrategy>("indicator");
+  const backtestMLModel = useCallback(() => {
+    setBacktestStrategy("ml");
+    setActiveTab("backtest");
+  }, []);
   const refreshTab = useCallback(() => {
     if (activeTab === "technical") {
       queryClient.invalidateQueries({ queryKey: ["signal", ticker] });
@@ -180,7 +187,7 @@ function TickerDashboard({ ticker }: { ticker: string }) {
       <TradingChart ticker={ticker} />
 
       {/* Analysis tabs */}
-      <Tabs defaultValue="technical" className="flex-col" onValueChange={setActiveTab}>
+      <Tabs value={activeTab} className="flex-col" onValueChange={setActiveTab}>
         <div className="flex items-center justify-between">
           <TabsList className="bg-muted/50 rounded-xl w-fit">
             <TabsTrigger value="technical" className="rounded-lg">Technical</TabsTrigger>
@@ -221,6 +228,14 @@ function TickerDashboard({ ticker }: { ticker: string }) {
                 <SignalCard data={signal} />
                 <IndicatorBreakdown components={signal.components} />
               </div>
+              <MethodologyNote>
+                <p>
+                  Six indicators each contribute signed points (RSI, MACD crossover, EMA trend
+                  9/21/50/200, Bollinger Bands, support/resistance, OBV). The sum is normalised
+                  to a 0–100 score: above 60 = BUY, below 40 = SELL, otherwise HOLD.
+                </p>
+                <p>Stop-loss and target are derived from ATR(14): 1.5× ATR stop, 3× ATR target on BUY signals.</p>
+              </MethodologyNote>
             </>
           ) : (
             <ErrorCard className="h-32" />
@@ -245,10 +260,15 @@ function TickerDashboard({ ticker }: { ticker: string }) {
               <FundamentalsPanel
                 data={fundamentals.fundamentals}
                 ticker={ticker}
+                breakdown={fundamentals.breakdown}
               />
-              {fundamentals.breakdown && (
-                <FundamentalsBreakdown breakdown={fundamentals.breakdown} />
-              )}
+              <MethodologyNote>
+                <p>
+                  Data from screener.in and Yahoo Finance, cached ~4 hours. The 0–100 score
+                  awards points for P/E, ROE, debt/equity, revenue growth, net margin (15 each)
+                  and analyst view (25). Card colours reflect each metric&apos;s contribution.
+                </p>
+              </MethodologyNote>
             </>
           ) : (
             <ErrorCard className="h-32" />
@@ -270,7 +290,15 @@ function TickerDashboard({ ticker }: { ticker: string }) {
                 sublabel={mlSub}
                 score={mlProb ?? undefined}
               />
-              <MLPredictionCard data={ml} />
+              <MLPredictionCard data={ml} onBacktestModel={backtestMLModel} />
+              <MethodologyNote>
+                <p>
+                  A RandomForest classifier is trained per request on 12 technical features over
+                  the full history, with a time-ordered 80/20 split (no shuffling, no leakage).
+                  It predicts whether tomorrow&apos;s close will be higher than today&apos;s.
+                  Accuracy is measured on the held-out 20%. Cached 1 hour.
+                </p>
+              </MethodologyNote>
             </>
           ) : (
             <ErrorCard className="h-32" />
@@ -278,7 +306,13 @@ function TickerDashboard({ ticker }: { ticker: string }) {
         </TabsContent>
 
         {/* Confluence */}
-        <TabsContent value="confluence" className="mt-4">
+        <TabsContent value="confluence" className="mt-4 space-y-4">
+          <SystemsStrip
+            technical={signal ? { signal: signal.signal, confidence: signal.confidence } : null}
+            fundamental={fundamentals?.grade ? { grade: fundamentals.grade, score: fundamentals.score } : null}
+            ml={ml ? { direction: ml.direction, probability: ml.probability } : null}
+            onSelectTab={setActiveTab}
+          />
           {confluenceLoading ? (
             <ConfluenceGridSkeleton />
           ) : confluence ? (
@@ -286,11 +320,24 @@ function TickerDashboard({ ticker }: { ticker: string }) {
           ) : confluenceError ? (
             <ConfluenceGridError />
           ) : null}
+          <MethodologyNote>
+            <p>
+              The same six-indicator signal engine runs on three timeframes: 1D (last ~3 months
+              of daily candles), 1W (weekly candles over 2 years), and 1M (monthly candles over
+              5 years), all resampled from one daily fetch. Agreement across timeframes is
+              summarised as the confluence strength above.
+            </p>
+          </MethodologyNote>
         </TabsContent>
 
         {/* Backtest */}
         <TabsContent value="backtest" className="mt-4">
-          <BacktestPanel ticker={ticker} enabled={activeTab === "backtest"} />
+          <BacktestPanel
+            ticker={ticker}
+            enabled={activeTab === "backtest"}
+            strategy={backtestStrategy}
+            onStrategyChange={setBacktestStrategy}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -19,6 +19,7 @@ router = APIRouter()
 
 _TICKER = Query(..., pattern=r"^[A-Z0-9.\-&]{1,30}$", description="Ticker e.g. RELIANCE.NS")
 _PERIOD  = Query("1y", pattern=r"^(1d|5d|1mo|3mo|6mo|1y|2y|5y|10y|ytd|max)$")
+_STRATEGY = Query("indicator", pattern=r"^(indicator|ml)$")
 
 
 @router.get("/analysis/fundamentals")
@@ -168,22 +169,32 @@ async def get_confluence(
 
 
 @router.get("/analysis/backtest")
+@limiter.limit("10/minute")
 async def get_backtest(
+    request: Request,
     ticker: str = _TICKER,
     period: str = _PERIOD,
+    strategy: str = _STRATEGY,
     user: dict = Depends(verify_supabase_jwt),
 ):
-    """Walk-forward backtest of the indicator signal strategy on daily OHLCV."""
-    cache_key = f"backtest:{ticker}:{period}"
+    """Walk-forward backtest on daily OHLCV.
+
+    strategy=indicator trades the composite technical signal;
+    strategy=ml trades a RandomForest next-day direction model
+    retrained monthly on a walk-forward basis.
+    """
+    cache_key = f"backtest:{ticker}:{period}:{strategy}"
 
     try:
         from services.daily_data import get_daily_df
-        from tools.compute_indicators import compute_all
         from tools.backtester import run_backtest
+        from tools.compute_indicators import compute_all
 
         async def _run():
             df = await get_daily_df(ticker, period)
-            return await asyncio.to_thread(lambda: run_backtest(compute_all(df.copy())))
+            return await asyncio.to_thread(
+                lambda: run_backtest(compute_all(df.copy()), strategy=strategy)
+            )
 
         result = await cached(cache_key, ttl=adaptive_ttl(21600), fn=_run)
     except ValueError as e:

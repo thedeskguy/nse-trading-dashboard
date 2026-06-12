@@ -144,9 +144,18 @@ export function ConfluenceGrid({ data }: Props) {
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Green = bullish points, Red = bearish. Hover cells for indicator detail. Cached 10 min.
-      </p>
+      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-buy/15 border border-buy/20 inline-block" /> Bullish points
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-sell/15 border border-sell/20 inline-block" /> Bearish points
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-muted/60 border border-border inline-block" /> Neutral
+        </span>
+        <span className="ml-auto">1W/1M candles resampled from daily · cached 10 min</span>
+      </div>
     </div>
   );
 }
