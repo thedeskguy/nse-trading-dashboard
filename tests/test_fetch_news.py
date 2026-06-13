@@ -44,3 +44,52 @@ def test_matches_query_on_title_and_summary():
     assert _matches_query(item, "Reliance")
     assert _matches_query(item, "reliance")
     assert not _matches_query(item, "Infosys")
+
+
+import tools.fetch_news as fn
+
+
+class _FakeParsed:
+    def __init__(self, entries):
+        self.entries = entries
+        self.bozo = 0
+
+
+def test_fetch_feed_items_normalizes_and_dedupes(monkeypatch):
+    def fake_parse(url):
+        return _FakeParsed([
+            {"title": "Dup", "link": "a", "summary": "x", "published": "now"},
+            {"title": "dup", "link": "b", "summary": "y", "published": "now"},
+            {"title": "Unique", "link": "c", "summary": "z", "published": "now"},
+        ])
+    monkeypatch.setattr(fn.feedparser, "parse", fake_parse)
+    items = fn.fetch_feed_items("india", limit=10)
+    titles = {i["title"] for i in items}
+    assert "Unique" in titles
+    assert len([i for i in items if i["title"].lower() == "dup"]) == 1
+    assert all("source" in i for i in items)
+
+
+def test_fetch_feed_items_skips_broken_feed(monkeypatch):
+    def boom(url):
+        raise RuntimeError("network down")
+    monkeypatch.setattr(fn.feedparser, "parse", boom)
+    # Must not raise; returns [] when every feed fails.
+    assert fn.fetch_feed_items("india") == []
+
+
+def test_fetch_stock_news_filters_pool(monkeypatch):
+    def fake_parse(url):
+        return _FakeParsed([
+            {"title": "Reliance hits record", "link": "a", "summary": "", "published": "now"},
+            {"title": "Infosys wins deal", "link": "b", "summary": "", "published": "now"},
+        ])
+    monkeypatch.setattr(fn.feedparser, "parse", fake_parse)
+    monkeypatch.delenv("NEWS_API_KEY", raising=False)
+    items = fn.fetch_stock_news("Reliance")
+    assert items, "expected at least one matching item"
+    assert all(_matches_query_safe(i, "Reliance") for i in items)
+
+
+def _matches_query_safe(item, q):
+    return q.lower() in f"{item['title']} {item['summary']}".lower()

@@ -4,7 +4,10 @@ No paid APIs. If NEWS_API_KEY is absent, the API path is skipped silently and
 RSS alone is used. Network functions are thin wrappers around feedparser; the
 parsing/normalisation logic lives in pure helpers so it is unit-testable.
 """
+import os
 import re
+
+import feedparser
 
 # Free RSS feeds. India = local market coverage; world = global context.
 FEEDS: dict[str, list[str]] = {
@@ -59,3 +62,73 @@ def _matches_query(item: dict, query: str) -> bool:
         return False
     hay = f"{item.get('title', '')} {item.get('summary', '')}".lower()
     return q in hay
+
+
+# Friendly source label per feed host.
+_SOURCE_LABELS = {
+    "moneycontrol": "Moneycontrol",
+    "indiatimes": "Economic Times",
+    "business-standard": "Business Standard",
+    "livemint": "LiveMint",
+    "dowjones": "MarketWatch",
+    "cnbc": "CNBC",
+    "reuters": "Reuters",
+}
+
+
+def _source_for(url: str) -> str:
+    for needle, label in _SOURCE_LABELS.items():
+        if needle in url:
+            return label
+    return "News"
+
+
+def fetch_feed_items(scope: str, limit: int = 40) -> list[dict]:
+    """Fetch + normalize + dedupe items for a scope ('india' | 'world').
+
+    Never raises: a feed that errors or returns nothing is skipped.
+    """
+    items: list[dict] = []
+    for url in FEEDS.get(scope, []):
+        try:
+            parsed = feedparser.parse(url)
+            source = _source_for(url)
+            for entry in getattr(parsed, "entries", []):
+                items.append(_normalize_entry(entry, source))
+        except Exception:
+            continue  # graceful: skip this feed
+    return _dedupe(items)[:limit]
+
+
+def _fetch_api_news(query: str, limit: int) -> list[dict]:
+    """Optional free-tier enrichment via GNews. No key -> []. Never raises."""
+    key = os.getenv("NEWS_API_KEY")
+    if not key:
+        return []
+    try:
+        import requests
+        resp = requests.get(
+            "https://gnews.io/api/v4/search",
+            params={"q": query, "lang": "en", "max": limit, "apikey": key},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return []
+        articles = resp.json().get("articles", [])
+        return [{
+            "title": _strip_html(a.get("title", "")),
+            "summary": _strip_html(a.get("description", "")),
+            "url": a.get("url", ""),
+            "source": (a.get("source") or {}).get("name", "GNews"),
+            "published_at": a.get("publishedAt", ""),
+        } for a in articles]
+    except Exception:
+        return []
+
+
+def fetch_stock_news(query: str, limit: int = 25) -> list[dict]:
+    """News mentioning `query`: filter the RSS pool, then add free-tier API hits."""
+    pool = fetch_feed_items("india", limit=80) + fetch_feed_items("world", limit=40)
+    matched = [it for it in pool if _matches_query(it, query)]
+    matched += _fetch_api_news(query, limit)
+    return _dedupe(matched)[:limit]
