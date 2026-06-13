@@ -30,6 +30,17 @@ A **buy-side only** decision-support tool for Indian market participants. Combin
 - **ML price direction predictor** — Random Forest trained on 12 technical features; predicts next-day up/down
 - **OI tornado chart** — back-to-back CALL/PUT open interest across strikes with ATM reference line
 
+### News Sentiment
+
+A dedicated **Market Sentiment** page (`/dashboard/sentiment`) surfaces news-driven bias for a stock and its macro context — without blending them into a single number:
+
+- **Three independent readouts** — stock, India market, world market — shown side by side. The stock's own news sentiment is its upside/downside call; India and world are context only, never merged with the stock score.
+- **Each readout:** a score (−100…+100), a label (Bullish / Neutral / Bearish), a confidence (0–100, based on article count and signal agreement), and the top headlines that drove it. Fewer than 3 usable articles → "Insufficient recent news" state; no fabricated signal is shown.
+- **100% free, no paid APIs required.** Backbone: free RSS feeds — Moneycontrol, Economic Times, Business Standard, LiveMint (India); MarketWatch, CNBC, Reuters (world). Optional free-tier GNews enrichment activates automatically when a `NEWS_API_KEY` env var is set; absent → RSS-only, no degraded behaviour.
+- **Scoring engine:** VADER lexicon — live, local, no API calls. (FinBERT nightly precompute + Supabase storage is Phase 2, not yet built.)
+- **Backend endpoints:** `GET /api/v1/sentiment/market?scope=india|world` and `GET /api/v1/sentiment/stock?ticker=…`
+- News-sentiment bias only — not investment advice.
+
 ### Trading Chart
 
 TradingView-style chart (lightweight-charts) on each stock page:
@@ -116,7 +127,10 @@ The Index Options page is accessible via the top navigation inside the app.
 │   ├── stock_lists.py         # Nifty 500 stock universe (used by EOD pipeline)
 │   ├── price_store.py         # Supabase read/write helpers for price_history table
 │   ├── eod_pipeline.py        # Nightly EOD OHLCV + scan precompute pipeline
-│   └── requirements-pipeline.txt  # Deps for eod_pipeline (CI/GitHub Actions)
+│   ├── requirements-pipeline.txt  # Deps for eod_pipeline (CI/GitHub Actions)
+│   ├── fetch_news.py          # Free RSS (+ optional GNews) news fetcher for sentiment
+│   ├── sentiment_engine.py    # VADER sentiment scoring (free, local)
+│   └── aggregate_sentiment.py # Headlines → score/label/confidence readout
 ├── tests/
 │   └── test_options_fixes.py  # Unit tests for options chain and signal edge cases
 ├── workflows/
@@ -260,6 +274,7 @@ requests
 
 ## Roadmap
 
+- [ ] FinBERT nightly sentiment scoring — EOD pipeline precompute + Supabase `sentiment_snapshots` table + trend-vs-yesterday deltas (Phase 2 of News Sentiment)
 - [ ] Compute Implied Volatility via Black-Scholes
 - [ ] Backtest signal scoring over 3-year Nifty 100 history
 - [ ] Options Greeks (Delta, Theta, Gamma) per recommendation
