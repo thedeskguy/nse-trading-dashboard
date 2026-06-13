@@ -1,25 +1,47 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { X, Check, Search, Settings2, ChevronUp } from 'lucide-react'
 import { INDICATORS, INDICATOR_MAP, MAX_PANEL_INDICATORS } from './lib/indicators'
-import type { ActiveIndicator, IndicatorId, IndicatorCategory } from './lib/types'
+import { SOURCES } from './lib/types'
+import type { ActiveIndicator, IndicatorId, IndicatorCategory, InputValue, Source, FieldDef } from './lib/types'
 
 const CATEGORIES: IndicatorCategory[] = ['TREND', 'MOMENTUM', 'VOLATILITY', 'VOLUME']
+const SWATCHES = ['#f7c948', '#2196f3', '#26c6da', '#ff7043', '#e040fb', '#26a69a', '#ef5350', '#ff6d00']
 
 interface Props {
   isOpen: boolean
   onClose: () => void
   activeIndicators: ActiveIndicator[]
-  onAdd: (id: IndicatorId, params?: Record<string, number>) => void
+  onAdd: (id: IndicatorId) => void
   onRemove: (instanceId: string) => void
-  onUpdateParams: (instanceId: string, params: Record<string, number>) => void
+  onUpdateInputs: (instanceId: string, inputs: Record<string, InputValue>) => void
+  onUpdateStyle: (instanceId: string, style: Record<string, string | number>) => void
   canAddPanel: boolean
+  initialOpenInstanceId?: string | null
 }
 
-export function IndicatorSearch({ isOpen, onClose, activeIndicators, onAdd, onRemove, onUpdateParams, canAddPanel }: Props) {
+function draftFrom(inst: ActiveIndicator): Record<string, string> {
+  return Object.fromEntries(Object.entries(inst.inputs).map(([k, v]) => [k, String(v)]))
+}
+
+export function IndicatorSearch({
+  isOpen, onClose, activeIndicators, onAdd, onRemove,
+  onUpdateInputs, onUpdateStyle, canAddPanel, initialOpenInstanceId,
+}: Props) {
   const [query, setQuery] = useState('')
-  const [openSettings, setOpenSettings] = useState<string | null>(null) // instanceId of expanded settings
-  const [draftParams, setDraftParams] = useState<Record<string, string>>({})
+  const [openSettings, setOpenSettings] = useState<string | null>(null)
+  const [draft, setDraft] = useState<Record<string, string>>({})
+
+  // Gear click in a legend routes here: open that instance's settings.
+  useEffect(() => {
+    if (!isOpen || !initialOpenInstanceId) return
+    const inst = activeIndicators.find(a => a.instanceId === initialOpenInstanceId)
+    if (inst) {
+      setOpenSettings(inst.instanceId)
+      setDraft(draftFrom(inst))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialOpenInstanceId])
 
   const filtered = useMemo(() => {
     if (!query) return INDICATORS
@@ -41,19 +63,111 @@ export function IndicatorSearch({ isOpen, onClose, activeIndicators, onAdd, onRe
     onAdd(id)
   }
 
-  function openIndicatorSettings(instanceId: string, params: Record<string, number>) {
-    setOpenSettings(prev => prev === instanceId ? null : instanceId)
-    setDraftParams(Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])))
+  function openIndicatorSettings(inst: ActiveIndicator) {
+    setOpenSettings(prev => (prev === inst.instanceId ? null : inst.instanceId))
+    setDraft(draftFrom(inst))
   }
 
-  function applySettings(instanceId: string) {
-    const parsed: Record<string, number> = {}
-    for (const [k, v] of Object.entries(draftParams)) {
-      const n = parseFloat(v)
-      if (!isNaN(n) && n > 0) parsed[k] = n
+  function applyInputs(inst: ActiveIndicator) {
+    const def = INDICATOR_MAP[inst.indicatorId]
+    const inputs: Record<string, InputValue> = { ...inst.inputs }
+    for (const f of def.fields) {
+      if (f.kind === 'int' || f.kind === 'float' || f.kind === 'level') {
+        const raw = draft[f.key]
+        const n = f.kind === 'int' ? parseInt(raw, 10) : parseFloat(raw)
+        if (!isNaN(n)) inputs[f.key] = Math.min(f.max, Math.max(f.min, n))
+      } else if (f.kind === 'source') {
+        const v = draft[f.key]
+        if ((SOURCES as readonly string[]).includes(v)) inputs[f.key] = v as Source
+      }
     }
-    onUpdateParams(instanceId, parsed)
+    onUpdateInputs(inst.instanceId, inputs)
     setOpenSettings(null)
+  }
+
+  function setStyleField(inst: ActiveIndicator, key: string, value: string | number) {
+    onUpdateStyle(inst.instanceId, { ...inst.style, [key]: value })
+  }
+
+  function renderField(inst: ActiveIndicator, f: FieldDef) {
+    if (f.kind === 'color') {
+      const current = (inst.style[f.key] as string) ?? f.default
+      return (
+        <div key={f.key} className="mb-2">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-[#787b86] text-xs">{f.label}</label>
+            <input
+              type="color"
+              value={current}
+              aria-label={f.label}
+              onChange={e => setStyleField(inst, f.key, e.target.value)}
+              className="w-8 h-6 bg-transparent border border-[#2a2e39] rounded cursor-pointer"
+            />
+          </div>
+          <div className="flex gap-1 mt-1 justify-end">
+            {SWATCHES.map(c => (
+              <button
+                key={c}
+                aria-label={`Set ${f.label} ${c}`}
+                onClick={() => setStyleField(inst, f.key, c)}
+                className="w-4 h-4 rounded-sm border border-[#2a2e39]"
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        </div>
+      )
+    }
+    if (f.kind === 'width') {
+      const current = (inst.style[f.key] as number) ?? f.default
+      return (
+        <div key={f.key} className="flex items-center justify-between gap-2 mb-2">
+          <label className="text-[#787b86] text-xs">{f.label}</label>
+          <div className="flex gap-1">
+            {([1, 2, 3] as const).map(w => (
+              <button
+                key={w}
+                onClick={() => setStyleField(inst, f.key, w)}
+                className={`px-2 py-0.5 rounded text-xs ${
+                  current === w ? 'bg-[#2962ff] text-white' : 'bg-[#1e2330] text-[#787b86] border border-[#2a2e39]'
+                }`}
+              >
+                {w}px
+              </button>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    if (f.kind === 'source') {
+      return (
+        <div key={f.key} className="flex items-center justify-between gap-2 mb-2">
+          <label className="text-[#787b86] text-xs">{f.label}</label>
+          <select
+            value={draft[f.key] ?? 'close'}
+            onChange={e => setDraft(prev => ({ ...prev, [f.key]: e.target.value }))}
+            className="bg-[#1e2330] border border-[#2a2e39] text-white text-xs rounded px-2 py-1 outline-none focus:border-[#2962ff]"
+          >
+            {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      )
+    }
+    // int | float | level
+    return (
+      <div key={f.key} className="flex items-center justify-between gap-2 mb-2">
+        <label className="text-[#787b86] text-xs">{f.label}</label>
+        <input
+          type="number"
+          value={draft[f.key] ?? ''}
+          min={f.min}
+          max={f.max}
+          step={f.kind === 'float' ? (f.step ?? 0.1) : 1}
+          onChange={e => setDraft(prev => ({ ...prev, [f.key]: e.target.value }))}
+          className="w-16 bg-[#1e2330] border border-[#2a2e39] text-white text-xs rounded px-2 py-1 outline-none focus:border-[#2962ff]"
+        />
+      </div>
+    )
   }
 
   if (!isOpen) return null
@@ -106,7 +220,7 @@ export function IndicatorSearch({ isOpen, onClose, activeIndicators, onAdd, onRe
                         {isActive && activeInstances.map(inst => (
                           <button
                             key={inst.instanceId}
-                            onClick={() => openIndicatorSettings(inst.instanceId, inst.params)}
+                            onClick={() => openIndicatorSettings(inst)}
                             className="ml-1 text-[#787b86] hover:text-white p-0.5"
                             title="Settings"
                           >
@@ -118,24 +232,12 @@ export function IndicatorSearch({ isOpen, onClose, activeIndicators, onAdd, onRe
                         ))}
                       </div>
 
-                      {/* Inline settings panel */}
                       {isActive && activeInstances.map(inst => openSettings === inst.instanceId && (
                         <div key={inst.instanceId} className="mx-4 mb-2 p-3 bg-[#131722] rounded border border-[#2a2e39]">
-                          {Object.entries(def.paramLabels).map(([key, label]) => (
-                            <div key={key} className="flex items-center justify-between gap-2 mb-2 last:mb-0">
-                              <label className="text-[#787b86] text-xs">{label}</label>
-                              <input
-                                type="number"
-                                value={draftParams[key] ?? ''}
-                                onChange={e => setDraftParams(prev => ({ ...prev, [key]: e.target.value }))}
-                                className="w-16 bg-[#1e2330] border border-[#2a2e39] text-white text-xs rounded px-2 py-1 outline-none focus:border-[#2962ff]"
-                                min="1"
-                              />
-                            </div>
-                          ))}
-                          {Object.keys(def.paramLabels).length > 0 && (
+                          {def.fields.map(f => renderField(inst, f))}
+                          {def.fields.some(f => f.kind !== 'color' && f.kind !== 'width') && (
                             <button
-                              onClick={() => applySettings(inst.instanceId)}
+                              onClick={() => applyInputs(inst)}
                               className="mt-2 w-full text-xs bg-[#2962ff] hover:bg-[#1e53e5] text-white rounded py-1 transition-colors"
                             >
                               Apply
