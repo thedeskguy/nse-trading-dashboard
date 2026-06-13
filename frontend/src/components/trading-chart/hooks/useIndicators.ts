@@ -92,11 +92,16 @@ export function useIndicators() {
   }, [])
 
   const updateInputs = useCallback((instanceId: string, inputs: Record<string, InputValue>) => {
-    setActive(prev => prev.map(a =>
-      a.instanceId === instanceId
-        ? { ...a, inputs, instanceId: makeInstanceId(INDICATOR_MAP[a.indicatorId], inputs) }
-        : a
-    ))
+    setActive(prev => {
+      const target = prev.find(a => a.instanceId === instanceId)
+      if (!target) return prev
+      const newId = makeInstanceId(INDICATOR_MAP[target.indicatorId], inputs)
+      // If the new id collides with a DIFFERENT existing instance, the edit wins:
+      // drop the colliding one so instanceIds stay unique (React keys depend on it).
+      return prev
+        .filter(a => a.instanceId === instanceId || a.instanceId !== newId)
+        .map(a => (a.instanceId === instanceId ? { ...a, inputs, instanceId: newId } : a))
+    })
   }, [])
 
   const updateStyle = useCallback((instanceId: string, style: Record<string, string | number>) => {

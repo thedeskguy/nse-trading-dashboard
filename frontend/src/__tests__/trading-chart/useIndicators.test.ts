@@ -64,6 +64,19 @@ describe('useIndicators', () => {
     expect(inst.style).toEqual({ color: '#2196f3', width: 2 })
   })
 
+  it('updateInputs collapsing onto an existing instance keeps instanceIds unique', () => {
+    const { result } = renderHook(() => useIndicators())
+    act(() => result.current.addIndicator('ema'))                 // ema-20-close
+    act(() => result.current.updateInputs('ema-20-close', { period: 50, source: 'close' })) // ema-50-close
+    act(() => result.current.addIndicator('ema'))                 // ema-20-close again
+    // Now edit the 20 to 50 → would collide with the existing ema-50-close
+    act(() => result.current.updateInputs('ema-20-close', { period: 50, source: 'close' }))
+    const ids = result.current.activeIndicators.map(a => a.instanceId)
+    expect(new Set(ids).size).toBe(ids.length)        // all unique
+    expect(ids).toContain('ema-50-close')
+    expect(result.current.activeIndicators).toHaveLength(1)
+  })
+
   it('caps panel indicators at the limit on hydrate', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       version: 2, volumeVisible: true,
