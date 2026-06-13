@@ -77,6 +77,13 @@ describe('useIndicators', () => {
     expect(result.current.activeIndicators).toHaveLength(1)
   })
 
+  it('updateStyle merges partial style without wiping other keys', () => {
+    const { result } = renderHook(() => useIndicators())
+    act(() => result.current.addIndicator('ema'))   // style { color:'#2196f3', width:2 }
+    act(() => result.current.updateStyle('ema-20-close', { color: '#00ff00' }))
+    expect(result.current.activeIndicators[0].style).toEqual({ color: '#00ff00', width: 2 })
+  })
+
   it('caps panel indicators at the limit on hydrate', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       version: 2, volumeVisible: true,

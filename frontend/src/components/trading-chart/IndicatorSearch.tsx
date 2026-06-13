@@ -222,6 +222,7 @@ export function IndicatorSearch({
                             key={inst.instanceId}
                             onClick={() => openIndicatorSettings(inst)}
                             className="ml-1 text-[#787b86] hover:text-white p-0.5"
+                            aria-label="Open settings"
                             title="Settings"
                           >
                             {openSettings === inst.instanceId

@@ -105,7 +105,7 @@ export function useIndicators() {
   }, [])
 
   const updateStyle = useCallback((instanceId: string, style: Record<string, string | number>) => {
-    setActive(prev => prev.map(a => (a.instanceId === instanceId ? { ...a, style } : a)))
+    setActive(prev => prev.map(a => (a.instanceId === instanceId ? { ...a, style: { ...a.style, ...style } } : a)))
   }, [])
 
   const toggleHidden = useCallback((instanceId: string) => {
