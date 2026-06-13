@@ -20,6 +20,7 @@ export function TradingChart({ ticker }: TradingChartProps) {
   const [activeInterval, setActiveInterval] = useState<Interval>('1D')
   const [activeRange, setActiveRange] = useState<Range>('6M')
   const [indicatorSearchOpen, setIndicatorSearchOpen] = useState(false)
+  const [settingsTarget, setSettingsTarget] = useState<string | null>(null)
 
   const { apiInterval, period } = INTERVAL_CONFIG[activeInterval]
 
@@ -28,10 +29,14 @@ export function TradingChart({ ticker }: TradingChartProps) {
     activeIndicators,
     addIndicator,
     removeIndicator,
-    updateParams,
+    updateInputs,
+    updateStyle,
+    toggleHidden,
     overlayIndicators,
     panelIndicators,
     canAddPanel,
+    volumeVisible,
+    toggleVolume,
   } = useIndicators()
   const { registerChart, unregisterChart } = useChartSync()
 
@@ -49,8 +54,19 @@ export function TradingChart({ ticker }: TradingChartProps) {
     else setActiveRange('6M')
   }
 
+  // Gear in any legend → open the drawer with that instance's settings expanded
+  function openSettingsFor(instanceId: string) {
+    setSettingsTarget(instanceId)
+    setIndicatorSearchOpen(true)
+  }
+
+  function closeSearch() {
+    setIndicatorSearchOpen(false)
+    setSettingsTarget(null)
+  }
+
   return (
-    <div className="flex flex-col bg-[#131722] rounded-lg overflow-hidden border border-[#2a2e39]">
+    <div className="flex flex-col bg-[#131722] rounded-2xl overflow-hidden border border-border">
       <ChartToolbar
         ticker={ticker}
         companyName={companyInfo?.name}
@@ -68,9 +84,14 @@ export function TradingChart({ ticker }: TradingChartProps) {
           <ChartCore
             candles={candles}
             overlayIndicators={overlayIndicators}
+            volumeVisible={volumeVisible}
             visibleRange={activeRange}
             onChartReady={handleChartReady}
             onChartRemove={handleChartRemove}
+            onToggleHidden={toggleHidden}
+            onOpenSettings={openSettingsFor}
+            onRemoveIndicator={removeIndicator}
+            onToggleVolume={toggleVolume}
           />
 
           {panelIndicators.map(ind => (
@@ -80,6 +101,8 @@ export function TradingChart({ ticker }: TradingChartProps) {
               candles={candles}
               height={120}
               onRemove={removeIndicator}
+              onToggleHidden={toggleHidden}
+              onOpenSettings={openSettingsFor}
               onChartReady={handleChartReady}
               onChartRemove={handleChartRemove}
             />
@@ -91,12 +114,14 @@ export function TradingChart({ ticker }: TradingChartProps) {
 
       <IndicatorSearch
         isOpen={indicatorSearchOpen}
-        onClose={() => setIndicatorSearchOpen(false)}
+        onClose={closeSearch}
         activeIndicators={activeIndicators}
         onAdd={addIndicator}
         onRemove={removeIndicator}
-        onUpdateParams={updateParams}
+        onUpdateInputs={updateInputs}
+        onUpdateStyle={updateStyle}
         canAddPanel={canAddPanel}
+        initialOpenInstanceId={settingsTarget}
       />
     </div>
   )
