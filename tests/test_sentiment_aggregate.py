@@ -1,4 +1,8 @@
 from tools.sentiment_engine import score_texts
+from tools.aggregate_sentiment import (
+    aggregate, build_readout,
+    BULLISH_THRESHOLD, BEARISH_THRESHOLD, MIN_ARTICLES,
+)
 
 
 def test_score_texts_signs():
@@ -15,11 +19,6 @@ def test_score_texts_signs():
 def test_score_texts_empty_and_blank():
     assert score_texts([]) == []
     assert score_texts(["", "   "]) == [0.0, 0.0]
-
-
-from tools.aggregate_sentiment import (
-    aggregate, BULLISH_THRESHOLD, BEARISH_THRESHOLD, MIN_ARTICLES,
-)
 
 
 def test_aggregate_bullish_label_and_range():
@@ -64,9 +63,6 @@ def test_aggregate_conflicting_lowers_confidence():
     agree = aggregate([0.6, 0.6, 0.6, 0.6, 0.6])
     conflict = aggregate([0.6, -0.6, 0.6, -0.6, 0.6])
     assert conflict["confidence"] < agree["confidence"]
-
-
-from tools.aggregate_sentiment import build_readout
 
 
 def _item(title, summary=""):

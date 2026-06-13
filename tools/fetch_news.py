@@ -106,6 +106,8 @@ def _fetch_api_news(query: str, limit: int) -> list[dict]:
     if not key:
         return []
     try:
+        # Lazy import: the API path is optional, so `requests` is only needed
+        # when a key is configured (RSS-only installs need not have it).
         import requests
         resp = requests.get(
             "https://gnews.io/api/v4/search",
