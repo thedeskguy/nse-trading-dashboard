@@ -127,3 +127,108 @@ describe('computeVolumeProfile', () => {
     computeVolumeProfile(makeCandles(50), 10).forEach(b => expect(b.volume).toBeGreaterThanOrEqual(0))
   })
 })
+
+import {
+  sourceValues, computeSMA, computeWMA, computeHMA,
+} from '@/components/trading-chart/lib/computeIndicators'
+
+function makeFlatCandles(n: number, price = 100): Candle[] {
+  return Array.from({ length: n }, (_, i) => ({
+    timestamp: `2024-02-${String(i + 1).padStart(2, '0')}`,
+    open: price, high: price, low: price, close: price, volume: 1000,
+  }))
+}
+
+function makeZigzagCandles(n: number): Candle[] {
+  return Array.from({ length: n }, (_, i) => ({
+    timestamp: `2024-03-${String(i + 1).padStart(2, '0')}`,
+    open: 100, high: 120, low: 80,
+    close: i % 2 === 0 ? 100 + 2 : 100 - 1,
+    volume: 1000,
+  }))
+}
+
+describe('sourceValues', () => {
+  const c: Candle = { timestamp: '2024-01-01', open: 10, high: 20, low: 5, close: 15, volume: 1 }
+  it('extracts each source correctly', () => {
+    expect(sourceValues([c], 'close')[0]).toBe(15)
+    expect(sourceValues([c], 'open')[0]).toBe(10)
+    expect(sourceValues([c], 'high')[0]).toBe(20)
+    expect(sourceValues([c], 'low')[0]).toBe(5)
+    expect(sourceValues([c], 'hl2')[0]).toBeCloseTo(12.5)
+    expect(sourceValues([c], 'hlc3')[0]).toBeCloseTo(40 / 3)
+    expect(sourceValues([c], 'ohlc4')[0]).toBeCloseTo(12.5)
+  })
+  it('defaults to close', () => {
+    expect(sourceValues([c])[0]).toBe(15)
+  })
+})
+
+describe('computeSMA', () => {
+  it('returns empty when candles < period', () => {
+    expect(computeSMA(makeCandles(3), 14)).toHaveLength(0)
+  })
+  it('computes the simple average (closes 101..105, SMA3 = 102,103,104)', () => {
+    const result = computeSMA(makeCandles(5), 3)
+    expect(result.map(p => p.value)).toEqual([102, 103, 104])
+  })
+  it('returns candles.length - period + 1 points', () => {
+    expect(computeSMA(makeCandles(30), 10)).toHaveLength(21)
+  })
+})
+
+describe('computeWMA', () => {
+  it('weights recent values more (closes 101..105, WMA3 = 102.33, 103.33, 104.33)', () => {
+    const result = computeWMA(makeCandles(5), 3)
+    expect(result[0].value).toBeCloseTo(614 / 6, 4)
+    expect(result[1].value).toBeCloseTo(620 / 6, 4)
+    expect(result[2].value).toBeCloseTo(626 / 6, 4)
+  })
+  it('returns empty when candles < period', () => {
+    expect(computeWMA(makeCandles(2), 3)).toHaveLength(0)
+  })
+})
+
+describe('computeHMA', () => {
+  it('equals the constant on flat data', () => {
+    computeHMA(makeFlatCandles(30), 9).forEach(p => expect(p.value).toBeCloseTo(100, 6))
+  })
+  it('has length n - (period - 1) - (floor(sqrt(period)) - 1)', () => {
+    expect(computeHMA(makeCandles(30), 9)).toHaveLength(20)
+  })
+  it('leads SMA on rising data (lower lag)', () => {
+    const candles = makeCandles(60)
+    const hma = computeHMA(candles, 20)
+    const sma = computeSMA(candles, 20)
+    expect(hma[hma.length - 1].value).toBeGreaterThan(sma[sma.length - 1].value)
+  })
+  it('returns empty when not enough candles', () => {
+    expect(computeHMA(makeCandles(5), 9)).toHaveLength(0)
+  })
+})
+
+describe('source-aware indicators', () => {
+  it('EMA on hl2 differs from close by the fixture offset', () => {
+    const candles = makeCandles(30)
+    const closeEMA = computeEMA(candles, 5)
+    const hl2EMA = computeEMA(candles, 5, 'hl2')
+    hl2EMA.forEach((p, i) => expect(p.value).toBeCloseTo(closeEMA[i].value - 1, 6))
+  })
+  it('RSI source changes the result (flat high → RSI 100, zigzag close → not 100)', () => {
+    const candles = makeZigzagCandles(40)
+    const rsiHigh = computeRSI(candles, 14, 'high')
+    const rsiClose = computeRSI(candles, 14, 'close')
+    rsiHigh.forEach(p => expect(p.value).toBe(100))
+    expect(rsiClose.some(p => p.value < 100)).toBe(true)
+  })
+  it('BB middle on open differs from close', () => {
+    const candles = makeCandles(40)
+    const bbClose = computeBB(candles, 20, 2)
+    const bbOpen = computeBB(candles, 20, 2, 'open')
+    expect(bbOpen.middle[0].value).toBeCloseTo(bbClose.middle[0].value - 1, 6)
+  })
+  it('MACD accepts a source param', () => {
+    const r = computeMACD(makeCandles(100), 12, 26, 9, 'hl2')
+    expect(r.macd.length).toBeGreaterThan(0)
+  })
+})

@@ -10,6 +10,9 @@ export interface Candle {
   volume: number
 }
 
+export const SOURCES = ['close', 'open', 'high', 'low', 'hl2', 'hlc3', 'ohlc4'] as const
+export type Source = typeof SOURCES[number]
+
 export type IndicatorId =
   | 'ema' | 'supertrend'
   | 'rsi' | 'macd' | 'stochastic' | 'adx'

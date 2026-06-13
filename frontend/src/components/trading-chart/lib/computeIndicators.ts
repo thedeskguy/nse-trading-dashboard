@@ -1,6 +1,6 @@
 // frontend/src/components/trading-chart/lib/computeIndicators.ts
 import type { Time, UTCTimestamp } from 'lightweight-charts'
-import type { Candle, LinePoint, HistPoint, MACDResult, BBResult, StochasticResult, SupertrendResult, VolumeProfileBar } from './types'
+import type { Candle, LinePoint, HistPoint, MACDResult, BBResult, StochasticResult, SupertrendResult, VolumeProfileBar, Source } from './types'
 
 // Intraday timestamps have a time component (length > 10); convert to Unix seconds.
 // Daily timestamps are "YYYY-MM-DD" strings which lightweight-charts accepts directly.
@@ -11,26 +11,89 @@ function toTime(timestamp: string): Time {
   return timestamp.slice(0, 10)
 }
 
+// ── Price source extraction ──────────────────────────────────────────────────
+export function sourceValues(candles: Candle[], source: Source = 'close'): number[] {
+  switch (source) {
+    case 'open':  return candles.map(c => c.open)
+    case 'high':  return candles.map(c => c.high)
+    case 'low':   return candles.map(c => c.low)
+    case 'hl2':   return candles.map(c => (c.high + c.low) / 2)
+    case 'hlc3':  return candles.map(c => (c.high + c.low + c.close) / 3)
+    case 'ohlc4': return candles.map(c => (c.open + c.high + c.low + c.close) / 4)
+    default:      return candles.map(c => c.close)
+  }
+}
+
+// ── SMA ──────────────────────────────────────────────────────────────────────
+export function computeSMA(candles: Candle[], period: number, source: Source = 'close'): LinePoint[] {
+  if (candles.length < period || period < 1) return []
+  const src = sourceValues(candles, source)
+  const result: LinePoint[] = []
+  let sum = src.slice(0, period).reduce((s, v) => s + v, 0)
+  result.push({ time: toTime(candles[period - 1].timestamp), value: sum / period })
+  for (let i = period; i < src.length; i++) {
+    sum += src[i] - src[i - period]
+    result.push({ time: toTime(candles[i].timestamp), value: sum / period })
+  }
+  return result
+}
+
+// ── WMA (weights 1..period, most recent heaviest) ────────────────────────────
+export function _wma(values: number[], period: number): number[] {
+  if (values.length < period || period < 1) return []
+  const denom = (period * (period + 1)) / 2
+  const out: number[] = []
+  for (let i = period - 1; i < values.length; i++) {
+    let s = 0
+    for (let j = 0; j < period; j++) s += values[i - period + 1 + j] * (j + 1)
+    out.push(s / denom)
+  }
+  return out
+}
+
+export function computeWMA(candles: Candle[], period: number, source: Source = 'close'): LinePoint[] {
+  const values = _wma(sourceValues(candles, source), period)
+  return values.map((v, i) => ({ time: toTime(candles[period - 1 + i].timestamp), value: v }))
+}
+
+// ── HMA: WMA(2·WMA(src, n/2) − WMA(src, n), floor(√n)) ───────────────────────
+export function computeHMA(candles: Candle[], period: number, source: Source = 'close'): LinePoint[] {
+  const sqrtP = Math.max(1, Math.floor(Math.sqrt(period)))
+  if (period < 2 || candles.length < period + sqrtP - 1) return []
+  const src = sourceValues(candles, source)
+  const half = _wma(src, Math.max(1, Math.floor(period / 2)))
+  const full = _wma(src, period)
+  const offset = half.length - full.length
+  const diff = full.map((f, i) => 2 * half[i + offset] - f)
+  const smoothed = _wma(diff, sqrtP)
+  return smoothed.map((v, i) => ({
+    time: toTime(candles[period - 1 + sqrtP - 1 + i].timestamp),
+    value: v,
+  }))
+}
+
 // ── EMA ──────────────────────────────────────────────────────────────────────
-export function computeEMA(candles: Candle[], period: number): LinePoint[] {
+export function computeEMA(candles: Candle[], period: number, source: Source = 'close'): LinePoint[] {
   if (candles.length < period) return []
+  const src = sourceValues(candles, source)
   const k = 2 / (period + 1)
   const result: LinePoint[] = []
-  let ema = candles.slice(0, period).reduce((s, c) => s + c.close, 0) / period
+  let ema = src.slice(0, period).reduce((s, v) => s + v, 0) / period
   result.push({ time: toTime(candles[period - 1].timestamp), value: ema })
   for (let i = period; i < candles.length; i++) {
-    ema = candles[i].close * k + ema * (1 - k)
+    ema = src[i] * k + ema * (1 - k)
     result.push({ time: toTime(candles[i].timestamp), value: ema })
   }
   return result
 }
 
 // ── RSI ──────────────────────────────────────────────────────────────────────
-export function computeRSI(candles: Candle[], period: number): LinePoint[] {
+export function computeRSI(candles: Candle[], period: number, source: Source = 'close'): LinePoint[] {
   if (candles.length <= period) return []
+  const src = sourceValues(candles, source)
   let avgGain = 0, avgLoss = 0
   for (let i = 1; i <= period; i++) {
-    const diff = candles[i].close - candles[i - 1].close
+    const diff = src[i] - src[i - 1]
     if (diff > 0) avgGain += diff; else avgLoss += Math.abs(diff)
   }
   avgGain /= period
@@ -38,7 +101,7 @@ export function computeRSI(candles: Candle[], period: number): LinePoint[] {
   const result: LinePoint[] = []
   for (let i = period; i < candles.length; i++) {
     if (i > period) {
-      const diff = candles[i].close - candles[i - 1].close
+      const diff = src[i] - src[i - 1]
       avgGain = (avgGain * (period - 1) + Math.max(0, diff)) / period
       avgLoss = (avgLoss * (period - 1) + Math.max(0, -diff)) / period
     }
@@ -60,9 +123,9 @@ export function _ema(values: number[], period: number): number[] {
 }
 
 // ── MACD ─────────────────────────────────────────────────────────────────────
-export function computeMACD(candles: Candle[], fast: number, slow: number, signal: number): MACDResult {
-  const emaFast = computeEMA(candles, fast)
-  const emaSlow = computeEMA(candles, slow)
+export function computeMACD(candles: Candle[], fast: number, slow: number, signal: number, source: Source = 'close'): MACDResult {
+  const emaFast = computeEMA(candles, fast, source)
+  const emaSlow = computeEMA(candles, slow, source)
   const offset = slow - fast
   const macdLine: LinePoint[] = emaSlow.map((s, i) => ({
     time: s.time,
@@ -83,11 +146,12 @@ export function computeMACD(candles: Candle[], fast: number, slow: number, signa
 }
 
 // ── Bollinger Bands ───────────────────────────────────────────────────────────
-export function computeBB(candles: Candle[], period: number, stddev: number): BBResult {
+export function computeBB(candles: Candle[], period: number, stddev: number, source: Source = 'close'): BBResult {
   if (candles.length < period) return { upper: [], middle: [], lower: [] }
+  const src = sourceValues(candles, source)
   const upper: LinePoint[] = [], middle: LinePoint[] = [], lower: LinePoint[] = []
   for (let i = period - 1; i < candles.length; i++) {
-    const slice = candles.slice(i - period + 1, i + 1).map(c => c.close)
+    const slice = src.slice(i - period + 1, i + 1)
     const mean = slice.reduce((s, v) => s + v, 0) / period
     const std = Math.sqrt(slice.reduce((s, v) => s + (v - mean) ** 2, 0) / period)
     const t = toTime(candles[i].timestamp)
