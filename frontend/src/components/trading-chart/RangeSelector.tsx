@@ -22,6 +22,15 @@ export function RangeSelector({ activeRange, onRangeChange }: Props) {
           {r}
         </button>
       ))}
+      {/* License-compliant attribution — per-pane watermark logos are disabled */}
+      <a
+        href="https://www.tradingview.com/lightweight-charts/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="ml-auto text-[10px] text-[#787b86] hover:text-white transition-colors pr-1"
+      >
+        Powered by TradingView Lightweight Charts
+      </a>
     </div>
   )
 }
