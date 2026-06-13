@@ -39,6 +39,7 @@ export function computeSMA(candles: Candle[], period: number, source: Source = '
 }
 
 // ── WMA (weights 1..period, most recent heaviest) ────────────────────────────
+/** @internal Exported only for the HMA composition and unit tests; not part of the chart's public API. */
 export function _wma(values: number[], period: number): number[] {
   if (values.length < period || period < 1) return []
   const denom = (period * (period + 1)) / 2

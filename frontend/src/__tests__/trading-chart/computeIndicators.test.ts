@@ -202,6 +202,16 @@ describe('computeHMA', () => {
     const sma = computeSMA(candles, 20)
     expect(hma[hma.length - 1].value).toBeGreaterThan(sma[sma.length - 1].value)
   })
+  it('preserves the exact slope on a linear ramp (zero-lag property)', () => {
+    // makeCandles closes form a linear ramp 101,102,103,... (slope 1).
+    // HMA of a linear series is itself linear with the SAME slope, so every
+    // consecutive HMA value must differ by exactly the ramp slope (1).
+    const hma = computeHMA(makeCandles(60), 16)
+    expect(hma.length).toBeGreaterThan(2)
+    for (let i = 1; i < hma.length; i++) {
+      expect(hma[i].value - hma[i - 1].value).toBeCloseTo(1, 6)
+    }
+  })
   it('returns empty when not enough candles', () => {
     expect(computeHMA(makeCandles(5), 9)).toHaveLength(0)
   })
@@ -227,8 +237,12 @@ describe('source-aware indicators', () => {
     const bbOpen = computeBB(candles, 20, 2, 'open')
     expect(bbOpen.middle[0].value).toBeCloseTo(bbClose.middle[0].value - 1, 6)
   })
-  it('MACD accepts a source param', () => {
-    const r = computeMACD(makeCandles(100), 12, 26, 9, 'hl2')
-    expect(r.macd.length).toBeGreaterThan(0)
+  it('MACD accepts a source param and stays aligned', () => {
+    const candles = makeCandles(100)
+    const close = computeMACD(candles, 12, 26, 9)
+    const hl2 = computeMACD(candles, 12, 26, 9, 'hl2')
+    expect(hl2.macd.length).toBe(close.macd.length)
+    expect(hl2.macd.length).toBeGreaterThan(0)
+    hl2.macd.forEach((p, i) => expect(p.time).toBe(close.macd[i].time))
   })
 })
