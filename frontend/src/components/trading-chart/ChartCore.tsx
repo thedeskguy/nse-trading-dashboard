@@ -1,17 +1,22 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import {
   createChart,
   CandlestickSeries,
-  LineSeries,
-  LineStyle,
+  HistogramSeries,
   type IChartApi,
+  type ISeriesApi,
+  type MouseEventParams,
   type Time,
   type UTCTimestamp,
 } from 'lightweight-charts'
 import type { ActiveIndicator, Candle } from './lib/types'
 import type { Range } from './ChartToolbar'
+import { addOverlaySeries, overlayLineSpec, type OverlayHandle } from './lib/overlaySeries'
+import { ChartLegend, type LegendRowData } from './ChartLegend'
+import { INDICATOR_MAP, legendTitle } from './lib/indicators'
+import { formatINR, formatVolume } from './lib/format'
 
 // IST is UTC+05:30 = 19800 seconds ahead of UTC
 const IST_OFFSET_SECONDS = 5 * 3600 + 30 * 60
@@ -19,70 +24,127 @@ const IST_OFFSET_SECONDS = 5 * 3600 + 30 * 60
 function toChartTime(timestamp: string): Time {
   if (timestamp.length <= 10) return timestamp
   // yfinance daily candles have midnight timestamps (T00:00:00+05:30).
-  // Use the date string so the chart shows the correct date, not 18:30 UTC.
   if (timestamp.includes('T00:00:00')) return timestamp.slice(0, 10)
-  // Intraday candles: lightweight-charts displays UTCTimestamp as UTC.
-  // Add IST offset so the displayed time matches Indian market hours.
   const utcSeconds = Math.floor(new Date(timestamp).getTime() / 1000)
   return (utcSeconds + IST_OFFSET_SECONDS) as UTCTimestamp
 }
-import {
-  computeEMA,
-  computeBB,
-  computeVWAP,
-  computeSupertrend,
-} from './lib/computeIndicators'
 
 interface ChartCoreProps {
   candles: Candle[]
   overlayIndicators: ActiveIndicator[]
+  volumeVisible: boolean
   visibleRange?: Range
   height?: number
   onScrollLeft?: () => void
   onChartReady?: (chart: IChartApi) => void
   onChartRemove?: (chart: IChartApi) => void
-}
-
-function emaColor(period: number): string {
-  switch (period) {
-    case 9:   return '#e040fb'
-    case 20:
-    case 21:  return '#f7c948'
-    case 50:  return '#2196f3'
-    case 100: return '#26c6da'
-    case 200: return '#ff7043'
-    default:  return '#888'
-  }
+  onToggleHidden: (instanceId: string) => void
+  onOpenSettings: (instanceId: string) => void
+  onRemoveIndicator: (instanceId: string) => void
+  onToggleVolume: () => void
 }
 
 function computeFromDate(lastDate: Date, range: Range): Date {
   const from = new Date(lastDate)
   switch (range) {
-    case '1D':  from.setDate(from.getDate() - 1);       break
-    case '5D':  from.setDate(from.getDate() - 5);       break
-    case '1M':  from.setMonth(from.getMonth() - 1);     break
-    case '3M':  from.setMonth(from.getMonth() - 3);     break
-    case '6M':  from.setMonth(from.getMonth() - 6);     break
+    case '1D':  from.setDate(from.getDate() - 1);         break
+    case '5D':  from.setDate(from.getDate() - 5);         break
+    case '1M':  from.setMonth(from.getMonth() - 1);       break
+    case '3M':  from.setMonth(from.getMonth() - 3);       break
+    case '6M':  from.setMonth(from.getMonth() - 6);       break
     case '1Y':  from.setFullYear(from.getFullYear() - 1); break
     case '5Y':  from.setFullYear(from.getFullYear() - 5); break
-    case 'All': from.setFullYear(1970);                 break
+    case 'All': from.setFullYear(1970);                   break
   }
   return from
+}
+
+function ohlcHtml(d: { open: number; high: number; low: number; close: number }): string {
+  const fmt = (n: number) => n.toFixed(2)
+  const chg = d.close - d.open
+  const pct = d.open !== 0 ? ((chg / d.open) * 100).toFixed(2) : '0.00'
+  const cc = chg >= 0 ? '#26a69a' : '#ef5350'
+  const sign = chg >= 0 ? '+' : ''
+  return (
+    `<span style="color:#9598a1">O&nbsp;</span><span style="color:${cc}">${fmt(d.open)}</span>&nbsp;&nbsp;` +
+    `<span style="color:#9598a1">H&nbsp;</span><span style="color:${cc}">${fmt(d.high)}</span>&nbsp;&nbsp;` +
+    `<span style="color:#9598a1">L&nbsp;</span><span style="color:${cc}">${fmt(d.low)}</span>&nbsp;&nbsp;` +
+    `<span style="color:#9598a1">C&nbsp;</span><span style="color:${cc}">${fmt(d.close)}</span>&nbsp;&nbsp;` +
+    `<span style="color:${cc}">${sign}${fmt(chg)} (${sign}${pct}%)</span>`
+  )
 }
 
 export function ChartCore({
   candles,
   overlayIndicators,
+  volumeVisible,
   visibleRange = '6M',
   height = 500,
   onScrollLeft,
   onChartReady,
   onChartRemove,
+  onToggleHidden,
+  onOpenSettings,
+  onRemoveIndicator,
+  onToggleVolume,
 }: ChartCoreProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const scrollLeftFired = useRef(false)
-  const tooltipRef = useRef<HTMLDivElement>(null)
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+  const handlesRef = useRef<Map<string, OverlayHandle[]>>(new Map())
+  const valueElsRef = useRef<Map<string, HTMLElement>>(new Map())
+  const candlesRef = useRef<Candle[]>(candles)
+  candlesRef.current = candles
+
+  // Writes current (hovered or last-bar) values into the legend's spans.
+  const updateLegendValues = useCallback((param?: MouseEventParams) => {
+    const els = valueElsRef.current
+    const last = candlesRef.current[candlesRef.current.length - 1]
+    const hovering = !!param?.time
+
+    const ohlcEl = els.get('ohlc')
+    if (ohlcEl) {
+      let d: { open: number; high: number; low: number; close: number } | undefined
+      if (hovering && candleSeriesRef.current) {
+        d = param!.seriesData.get(candleSeriesRef.current) as typeof d
+      }
+      if (!d && last) d = last
+      ohlcEl.innerHTML = d ? ohlcHtml(d) : ''
+    }
+
+    const volEl = els.get('volume')
+    if (volEl) {
+      let v: number | undefined
+      if (hovering && volumeSeriesRef.current) {
+        v = (param!.seriesData.get(volumeSeriesRef.current) as { value: number } | undefined)?.value
+      }
+      if (v === undefined && last) v = last.volume
+      volEl.textContent = v !== undefined ? formatVolume(v) : '—'
+    }
+
+    handlesRef.current.forEach((handles, instanceId) => {
+      for (const h of handles) {
+        const el = els.get(`${instanceId}:${h.lineKey}`)
+        if (!el) continue
+        let v: number | undefined
+        if (hovering) v = (param!.seriesData.get(h.series) as { value: number } | undefined)?.value
+        if (v === undefined && h.data.length) v = h.data[h.data.length - 1].value
+        el.textContent = v !== undefined ? v.toFixed(2) : '—'
+      }
+    })
+  }, [])
+
+  const registerValueEl = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) valueElsRef.current.set(id, el)
+    else valueElsRef.current.delete(id)
+    queueMicrotask(() => updateLegendValues())
+  }, [updateLegendValues])
+
+  // Rebuild key: add/remove/input changes only. Style and hidden are applied
+  // in the lightweight effect below without recreating the chart.
+  const overlayKey = overlayIndicators.map(i => i.instanceId).join('|')
 
   useEffect(() => {
     const container = containerRef.current
@@ -94,14 +156,14 @@ export function ChartCore({
       layout: {
         background: { color: '#131722' },
         textColor: '#787b86',
+        attributionLogo: false,
       },
+      localization: { priceFormatter: formatINR },
       grid: {
         vertLines: { color: '#1e2328' },
         horzLines: { color: '#1e2328' },
       },
-      rightPriceScale: {
-        borderColor: '#2a2e39',
-      },
+      rightPriceScale: { borderColor: '#2a2e39' },
       timeScale: {
         borderColor: '#2a2e39',
         timeVisible: true,
@@ -112,10 +174,8 @@ export function ChartCore({
         horzLine: { color: '#555', labelBackgroundColor: '#2a2e39' },
       },
     })
-
     chartRef.current = chart
 
-    // Candlestick series
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -124,7 +184,7 @@ export function ChartCore({
       wickUpColor: '#26a69a',
       wickDownColor: '#ef5350',
     })
-
+    candleSeriesRef.current = candleSeries
     candleSeries.setData(
       candles.map(c => ({
         time: toChartTime(c.timestamp),
@@ -135,9 +195,26 @@ export function ChartCore({
       }))
     )
 
-    // Set visible range based on visibleRange prop
+    // Volume histogram in the bottom 20% of the pane.
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceScaleId: 'volume',
+      priceFormat: { type: 'volume' },
+      lastValueVisible: false,
+      priceLineVisible: false,
+      visible: volumeVisible,
+    })
+    chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } })
+    volumeSeries.setData(
+      candles.map(c => ({
+        time: toChartTime(c.timestamp),
+        value: c.volume,
+        color: c.close >= c.open ? '#26a69a80' : '#ef535080',
+      }))
+    )
+    volumeSeriesRef.current = volumeSeries
+
+    // Visible range
     const lastCandle = candles[candles.length - 1]
-    // Intraday = has time component AND it's not midnight (daily yfinance timestamps are midnight)
     const isIntraday = lastCandle.timestamp.length > 10 && !lastCandle.timestamp.includes('T00:00:00')
     const lastDate = new Date(lastCandle.timestamp)
     const fromDate = computeFromDate(lastDate, visibleRange)
@@ -160,88 +237,9 @@ export function ChartCore({
     }
 
     // Overlay indicators
-    for (const indicator of overlayIndicators) {
-      const { indicatorId, params } = indicator
-
-      if (indicatorId === 'ema') {
-        const period = params.period ?? 20
-        const data = computeEMA(candles, period)
-        const series = chart.addSeries(LineSeries, {
-          color: emaColor(period),
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        })
-        series.setData(data)
-
-      } else if (indicatorId === 'bb') {
-        const period = params.period ?? 20
-        const stddev = params.stddev ?? 2
-        const result = computeBB(candles, period, stddev)
-
-        const upperSeries = chart.addSeries(LineSeries, {
-          color: '#42a5f5',
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        })
-        upperSeries.setData(result.upper)
-
-        const middleSeries = chart.addSeries(LineSeries, {
-          color: '#78909c',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        })
-        middleSeries.setData(result.middle)
-
-        const lowerSeries = chart.addSeries(LineSeries, {
-          color: '#42a5f5',
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        })
-        lowerSeries.setData(result.lower)
-
-      } else if (indicatorId === 'vwap') {
-        const data = computeVWAP(candles)
-        const series = chart.addSeries(LineSeries, {
-          color: '#ff6d00',
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        })
-        series.setData(data)
-
-      } else if (indicatorId === 'supertrend') {
-        const period = params.period ?? 10
-        const multiplier = params.multiplier ?? 3
-        const result = computeSupertrend(candles, period, multiplier)
-
-        const bullPoints = result.values.filter((_, i) => result.bullish[i])
-        const bearPoints = result.values.filter((_, i) => !result.bullish[i])
-
-        if (bullPoints.length > 0) {
-          const bullSeries = chart.addSeries(LineSeries, {
-            color: '#26a69a',
-            lineWidth: 2,
-            priceLineVisible: false,
-            lastValueVisible: false,
-          })
-          bullSeries.setData(bullPoints)
-        }
-
-        if (bearPoints.length > 0) {
-          const bearSeries = chart.addSeries(LineSeries, {
-            color: '#ef5350',
-            lineWidth: 2,
-            priceLineVisible: false,
-            lastValueVisible: false,
-          })
-          bearSeries.setData(bearPoints)
-        }
-      }
+    handlesRef.current = new Map()
+    for (const ind of overlayIndicators) {
+      handlesRef.current.set(ind.instanceId, addOverlaySeries(chart, ind, candles))
     }
 
     // Scroll-left detection
@@ -253,32 +251,11 @@ export function ChartCore({
       }
     })
 
-    // OHLC hover tooltip
-    chart.subscribeCrosshairMove(param => {
-      const el = tooltipRef.current
-      if (!el) return
-      if (!param.time || !param.seriesData.size) {
-        el.innerHTML = ''
-        return
-      }
-      const d = param.seriesData.get(candleSeries) as { open: number; high: number; low: number; close: number } | undefined
-      if (!d) return
-      const fmt = (n: number) => n.toFixed(2)
-      const chg = d.close - d.open
-      const chgPct = ((chg / d.open) * 100).toFixed(2)
-      const color = chg >= 0 ? '#26a69a' : '#ef5350'
-      el.innerHTML =
-        `<span style="color:#9598a1">O</span> <span>${fmt(d.open)}</span>` +
-        `&nbsp;<span style="color:#9598a1">H</span> <span style="color:#26a69a">${fmt(d.high)}</span>` +
-        `&nbsp;<span style="color:#9598a1">L</span> <span style="color:#ef5350">${fmt(d.low)}</span>` +
-        `&nbsp;<span style="color:#9598a1">C</span> <span>${fmt(d.close)}</span>` +
-        `&nbsp;<span style="color:${color}">${chg >= 0 ? '+' : ''}${fmt(chg)} (${chg >= 0 ? '+' : ''}${chgPct}%)</span>`
-    })
+    chart.subscribeCrosshairMove(param => updateLegendValues(param))
+    updateLegendValues()
 
-    // Notify parent
     onChartReady?.(chart)
 
-    // ResizeObserver
     const ro = new ResizeObserver(entries => {
       const entry = entries[0]
       if (entry && chartRef.current) {
@@ -292,33 +269,55 @@ export function ChartCore({
       onChartRemove?.(chart)
       chart.remove()
       chartRef.current = null
+      candleSeriesRef.current = null
+      volumeSeriesRef.current = null
+      handlesRef.current = new Map()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, overlayIndicators, height, visibleRange])
+  }, [candles, overlayKey, height, visibleRange])
+
+  // Style / visibility pass — no chart rebuild.
+  useEffect(() => {
+    if (!chartRef.current) return
+    for (const ind of overlayIndicators) {
+      const handles = handlesRef.current.get(ind.instanceId)
+      if (!handles) continue
+      for (const h of handles) {
+        h.series.applyOptions({
+          visible: !ind.hidden,
+          color: (ind.style[h.colorKey] as string) ?? '#888888',
+          lineWidth: ((ind.style.width as 1 | 2 | 3 | 4) ?? 2),
+        })
+      }
+    }
+    volumeSeriesRef.current?.applyOptions({ visible: volumeVisible })
+    updateLegendValues()
+  }, [overlayIndicators, volumeVisible, updateLegendValues])
+
+  const rows: LegendRowData[] = overlayIndicators.map(ind => {
+    const def = INDICATOR_MAP[ind.indicatorId]
+    return {
+      instanceId: ind.instanceId,
+      title: legendTitle(def, ind.inputs),
+      lines: overlayLineSpec(ind.indicatorId).map(s => ({
+        lineKey: s.lineKey,
+        color: (ind.style[s.colorKey] as string) ?? '#888888',
+      })),
+      hidden: ind.hidden,
+    }
+  })
 
   return (
     <div className="relative w-full" style={{ height, backgroundColor: '#131722' }}>
-      {/* OHLC hover tooltip — top-left, updated via DOM ref for perf */}
-      <div
-        ref={tooltipRef}
-        className="absolute top-2 left-2 z-10 text-[11px] font-mono pointer-events-none flex gap-0"
+      <ChartLegend
+        rows={rows}
+        volumeVisible={volumeVisible}
+        registerValueEl={registerValueEl}
+        onToggleHidden={onToggleHidden}
+        onOpenSettings={onOpenSettings}
+        onRemove={onRemoveIndicator}
+        onToggleVolume={onToggleVolume}
       />
-      {/* Active overlay indicator labels — below OHLC row */}
-      {overlayIndicators.length > 0 && (
-        <div className="absolute top-6 left-2 z-10 flex flex-wrap gap-x-3 gap-y-0.5 pointer-events-none">
-          {overlayIndicators.map(ind => {
-            const suffix = Object.values(ind.params).join(',')
-            const label = suffix
-              ? `${ind.indicatorId.toUpperCase()} ${suffix}`
-              : ind.indicatorId.toUpperCase()
-            return (
-              <span key={ind.instanceId} className="text-[11px] text-[#787b86] font-mono">
-                {label}
-              </span>
-            )
-          })}
-        </div>
-      )}
       <div ref={containerRef} className="w-full h-full" />
     </div>
   )
