@@ -30,6 +30,18 @@ A **buy-side only** decision-support tool for Indian market participants. Combin
 - **ML price direction predictor** — Random Forest trained on 12 technical features; predicts next-day up/down
 - **OI tornado chart** — back-to-back CALL/PUT open interest across strikes with ATM reference line
 
+### Trading Chart
+
+TradingView-style chart (lightweight-charts) on each stock page:
+
+- 14 indicators — SMA, EMA, WMA, HMA, Supertrend, Bollinger, VWAP (overlays);
+  RSI, MACD, Stochastic, ADX, ATR, OBV (panels, max 2)
+- Full per-indicator settings: periods, price source (close/open/hl2/hlc3/ohlc4),
+  per-line colors, line width, and editable overbought/oversold levels
+- Volume histogram, TradingView-style legends with live values and
+  hide/settings/remove controls, shaded OB/OS bands in oscillator panes
+- Layout persists in localStorage across sessions and tickers
+
 ---
 
 ## Data Sources
