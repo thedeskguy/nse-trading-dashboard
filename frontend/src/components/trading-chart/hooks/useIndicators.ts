@@ -51,7 +51,11 @@ export function useIndicators() {
   const [volumeVisible, setVolumeVisible] = useState(true)
   const [hydrated, setHydrated] = useState(false)
 
-  // Hydrate after mount (avoids SSR hydration mismatch).
+  // Hydrate from localStorage AFTER mount, not during render: reading storage
+  // in render would make the client's first paint differ from the server's
+  // (empty) markup and trip a hydration mismatch. Synchronous setState here is
+  // the intended pattern for that, so the set-state-in-effect rule is disabled.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const loaded = loadPersisted()
     if (loaded) {
@@ -60,6 +64,7 @@ export function useIndicators() {
     }
     setHydrated(true)
   }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return
