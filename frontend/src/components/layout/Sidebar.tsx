@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Activity,
   ScanSearch,
+  Newspaper,
   Settings,
   BookOpen,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Options", href: "/dashboard/options/NIFTY", icon: Activity },
   { label: "Scanner", href: "/dashboard/scanner", icon: ScanSearch },
+  { label: "Sentiment", href: "/dashboard/sentiment", icon: Newspaper },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
   { label: "How It Works", href: "/dashboard/about", icon: BookOpen },
 ];

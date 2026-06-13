@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Activity, ScanSearch, Settings, BookOpen } from "lucide-react";
+import { LayoutDashboard, Activity, ScanSearch, Newspaper, Settings, BookOpen } from "lucide-react";
 
 const navItems = [
   { label: "Home",     href: "/dashboard",               icon: LayoutDashboard },
   { label: "Options",  href: "/dashboard/options/NIFTY", icon: Activity },
   { label: "Scanner",  href: "/dashboard/scanner",       icon: ScanSearch },
+  { label: "Sentiment", href: "/dashboard/sentiment",   icon: Newspaper },
   { label: "Settings", href: "/dashboard/settings",      icon: Settings },
   { label: "About",    href: "/dashboard/about",         icon: BookOpen },
 ];
