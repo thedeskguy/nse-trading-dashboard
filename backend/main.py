@@ -12,7 +12,7 @@ from slowapi.errors import RateLimitExceeded
 
 from config import get_settings
 from services.limiter import limiter
-from routers import health, market, analysis, options, payments
+from routers import health, market, analysis, options, payments, sentiment
 
 _WARM_SYMBOLS = ["NIFTY", "BANKNIFTY", "MIDCPNIFTY"]
 _WARM_INTERVAL = 50   # seconds — slightly less than the 55s tool cache TTL
@@ -107,3 +107,4 @@ app.include_router(market.router, prefix="/api/v1")
 app.include_router(analysis.router, prefix="/api/v1")
 app.include_router(options.router, prefix="/api/v1")
 app.include_router(payments.router, prefix="/api/v1")
+app.include_router(sentiment.router, prefix="/api/v1")
