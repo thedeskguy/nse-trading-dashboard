@@ -1,5 +1,6 @@
 import sys
 import os
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -33,7 +34,6 @@ async def get_market_sentiment(
 ):
     """India + world market news sentiment (independent readouts)."""
     async def _compute():
-        import asyncio
         india, world = await asyncio.gather(
             asyncio.to_thread(_scope_readout, "india"),
             asyncio.to_thread(_scope_readout, "world"),
