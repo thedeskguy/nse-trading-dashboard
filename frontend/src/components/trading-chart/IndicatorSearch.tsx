@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo, useEffect } from 'react'
-import { X, Check, Search, Settings2, ChevronUp } from 'lucide-react'
-import { INDICATORS, INDICATOR_MAP, MAX_PANEL_INDICATORS } from './lib/indicators'
+import { X, Plus, Search, Settings2, ChevronUp } from 'lucide-react'
+import { INDICATORS, INDICATOR_MAP, MAX_PANEL_INDICATORS, legendTitle } from './lib/indicators'
 import { SOURCES } from './lib/types'
 import type { ActiveIndicator, IndicatorId, IndicatorCategory, InputValue, Source, FieldDef } from './lib/types'
 
@@ -48,14 +48,11 @@ export function IndicatorSearch({
     return INDICATORS.filter(d => d.name.toLowerCase().includes(query.toLowerCase()))
   }, [query])
 
-  function handleToggle(id: IndicatorId) {
+  // Clicking an indicator always ADDS a new instance, so users can stack
+  // several of the same one (SMA 20 + SMA 50, etc.). Remove via the per-instance
+  // ✕ in the list below, or the chart legend's ✕.
+  function handleAdd(id: IndicatorId) {
     const def = INDICATOR_MAP[id]
-    const existing = activeIndicators.filter(a => a.indicatorId === id)
-    if (existing.length > 0) {
-      onRemove(existing[0].instanceId)
-      setOpenSettings(null)
-      return
-    }
     if (def.type === 'panel' && !canAddPanel) {
       alert(`Panel limit reached. Remove an existing panel indicator first (max ${MAX_PANEL_INDICATORS}).`)
       return
@@ -205,47 +202,70 @@ export function IndicatorSearch({
                 <div className="px-4 py-1 text-[#787b86] text-[10px] font-semibold tracking-wider uppercase">{cat}</div>
                 {items.map(def => {
                   const activeInstances = activeIndicators.filter(a => a.indicatorId === def.id)
-                  const isActive = activeInstances.length > 0
 
                   return (
                     <div key={def.id}>
-                      <div className="flex items-center px-4 py-2 hover:bg-[#2a2e39] transition-colors">
-                        <button
-                          onClick={() => handleToggle(def.id)}
-                          className="flex items-center gap-2 flex-1 min-w-0"
-                        >
-                          <span className={`text-sm ${isActive ? 'text-white' : 'text-[#b2b5be]'}`}>{def.name}</span>
-                          {isActive && <Check className="h-3.5 w-3.5 text-[#2962ff] shrink-0" />}
-                        </button>
-                        {isActive && activeInstances.map(inst => (
-                          <button
-                            key={inst.instanceId}
-                            onClick={() => openIndicatorSettings(inst)}
-                            className="ml-1 text-[#787b86] hover:text-white p-0.5"
-                            aria-label="Open settings"
-                            title="Settings"
-                          >
-                            {openSettings === inst.instanceId
-                              ? <ChevronUp className="h-3.5 w-3.5" />
-                              : <Settings2 className="h-3.5 w-3.5" />
-                            }
-                          </button>
-                        ))}
-                      </div>
+                      {/* Name row — click adds another instance */}
+                      <button
+                        onClick={() => handleAdd(def.id)}
+                        className="w-full flex items-center gap-2 px-4 py-2 hover:bg-[#2a2e39] transition-colors text-left"
+                      >
+                        <span className={`text-sm flex-1 min-w-0 ${activeInstances.length ? 'text-white' : 'text-[#b2b5be]'}`}>
+                          {def.name}
+                        </span>
+                        {activeInstances.length > 0 && (
+                          <span className="text-[10px] text-[#2962ff] font-semibold shrink-0">{activeInstances.length}×</span>
+                        )}
+                        <Plus className="h-3.5 w-3.5 text-[#787b86] shrink-0" />
+                      </button>
 
-                      {isActive && activeInstances.map(inst => openSettings === inst.instanceId && (
-                        <div key={inst.instanceId} className="mx-4 mb-2 p-3 bg-[#131722] rounded border border-[#2a2e39]">
-                          {def.fields.map(f => renderField(inst, f))}
-                          {def.fields.some(f => f.kind !== 'color' && f.kind !== 'width') && (
-                            <button
-                              onClick={() => applyInputs(inst)}
-                              className="mt-2 w-full text-xs bg-[#2962ff] hover:bg-[#1e53e5] text-white rounded py-1 transition-colors"
-                            >
-                              Apply
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                      {/* One sub-row per active instance: title · settings · remove */}
+                      {activeInstances.map(inst => {
+                        const title = legendTitle(def, inst.inputs)
+                        return (
+                          <div key={inst.instanceId}>
+                            <div className="flex items-center pl-6 pr-4 py-1.5 hover:bg-[#2a2e39]/40 transition-colors">
+                              <span className="text-xs text-[#b2b5be] flex-1 min-w-0 truncate">{title}</span>
+                              <button
+                                onClick={() => openIndicatorSettings(inst)}
+                                className="ml-1 text-[#787b86] hover:text-white p-0.5"
+                                aria-label={`Settings ${title}`}
+                                title="Settings"
+                              >
+                                {openSettings === inst.instanceId
+                                  ? <ChevronUp className="h-3.5 w-3.5" />
+                                  : <Settings2 className="h-3.5 w-3.5" />
+                                }
+                              </button>
+                              <button
+                                onClick={() => {
+                                  onRemove(inst.instanceId)
+                                  if (openSettings === inst.instanceId) setOpenSettings(null)
+                                }}
+                                className="ml-1 text-[#787b86] hover:text-white p-0.5"
+                                aria-label={`Remove ${title}`}
+                                title="Remove"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
+                            {openSettings === inst.instanceId && (
+                              <div className="mx-4 mb-2 p-3 bg-[#131722] rounded border border-[#2a2e39]">
+                                {def.fields.map(f => renderField(inst, f))}
+                                {def.fields.some(f => f.kind !== 'color' && f.kind !== 'width') && (
+                                  <button
+                                    onClick={() => applyInputs(inst)}
+                                    className="mt-2 w-full text-xs bg-[#2962ff] hover:bg-[#1e53e5] text-white rounded py-1 transition-colors"
+                                  >
+                                    Apply
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   )
                 })}

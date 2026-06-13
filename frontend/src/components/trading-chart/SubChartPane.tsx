@@ -20,9 +20,10 @@ import {
   computeADX,
   computeATR,
   computeOBV,
+  toTime,
 } from './lib/computeIndicators'
 import { INDICATOR_MAP, legendTitle } from './lib/indicators'
-import { formatVolume } from './lib/format'
+import { formatVolume, PRICE_SCALE_WIDTH } from './lib/format'
 
 interface SubChartPaneProps {
   indicator: ActiveIndicator
@@ -104,7 +105,7 @@ export function SubChartPane({
         vertLines: { color: COLORS.grid },
         horzLines: { color: COLORS.grid },
       },
-      rightPriceScale: { borderColor: COLORS.border },
+      rightPriceScale: { borderColor: COLORS.border, minimumWidth: PRICE_SCALE_WIDTH },
       timeScale: {
         borderColor: COLORS.border,
         timeVisible: true,
@@ -116,6 +117,20 @@ export function SubChartPane({
       },
     })
     chartRef.current = chart
+
+    // Whitespace spacer spanning every candle so this pane's bar indices line up
+    // 1:1 with the main chart. Without it the pane's first bar is the indicator's
+    // warmup bar, and logical-range sync shifts the dates (RSI months drifting
+    // off the price axis). Added before registering for sync so the time scale
+    // is already full-range when the first synced range arrives.
+    const spacer = chart.addSeries(LineSeries, {
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+      autoscaleInfoProvider: () => null,
+    })
+    spacer.setData(candles.map(c => ({ time: toTime(c.timestamp) })))
+
     onChartReady?.(chart)
 
     const widthOpt = ((style.width as 1 | 2 | 3 | 4) ?? 2)

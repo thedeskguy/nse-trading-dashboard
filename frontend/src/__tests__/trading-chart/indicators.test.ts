@@ -1,5 +1,5 @@
 import {
-  INDICATOR_MAP, inputDefaults, styleDefaults, makeInstanceId, legendTitle, sanitizeStored,
+  INDICATOR_MAP, inputDefaults, styleDefaults, legendTitle, sanitizeStored,
 } from '@/components/trading-chart/lib/indicators'
 
 describe('registry schema', () => {
@@ -15,15 +15,11 @@ describe('registry schema', () => {
   })
 })
 
-describe('defaults + instanceId', () => {
+describe('defaults', () => {
   it('inputDefaults/styleDefaults split by kind', () => {
     const def = INDICATOR_MAP.ema
     expect(inputDefaults(def)).toEqual({ period: 20, source: 'close' })
     expect(styleDefaults(def)).toEqual({ color: '#2196f3', width: 2 })
-  })
-  it('instanceId derives from inputs only, in field order', () => {
-    const def = INDICATOR_MAP.ema
-    expect(makeInstanceId(def, { period: 50, source: 'close' })).toBe('ema-50-close')
   })
 })
 

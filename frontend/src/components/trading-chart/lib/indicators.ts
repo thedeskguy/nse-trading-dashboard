@@ -84,11 +84,6 @@ export function styleDefaults(def: IndicatorDef): Record<string, string | number
   return Object.fromEntries(def.fields.filter(isStyleField).map(f => [f.key, f.default]))
 }
 
-export function makeInstanceId(def: IndicatorDef, inputs: Record<string, InputValue>): string {
-  const suffix = def.fields.filter(isInputField).map(f => String(inputs[f.key])).join('-')
-  return suffix ? `${def.id}-${suffix}` : def.id
-}
-
 // Legend text: name + numeric inputs (levels excluded) + source when not close.
 export function legendTitle(def: IndicatorDef, inputs: Record<string, InputValue>): string {
   const nums = def.fields

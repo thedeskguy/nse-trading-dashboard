@@ -2,11 +2,21 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import {
   INDICATOR_MAP, MAX_PANEL_INDICATORS,
-  inputDefaults, styleDefaults, makeInstanceId, sanitizeStored,
+  inputDefaults, styleDefaults, sanitizeStored,
 } from '../lib/indicators'
 import type { ActiveIndicator, IndicatorId, InputValue } from '../lib/types'
 
 export const STORAGE_KEY = 'tradedash.chart.v2'
+
+// Each active indicator gets a unique id independent of its inputs, so a user
+// can stack several of the same indicator (e.g. SMA 20 + SMA 50 + SMA 200).
+// The id only needs to be stable for the lifetime of the page; it is not
+// persisted — instances are re-keyed on hydrate.
+let instanceCounter = 0
+function nextInstanceId(id: IndicatorId): string {
+  instanceCounter += 1
+  return `${id}#${instanceCounter}`
+}
 
 interface PersistedV2 {
   version: 2
@@ -36,9 +46,7 @@ function loadPersisted(): { volumeVisible: boolean; indicators: ActiveIndicator[
         panelCount++
       }
       const { inputs, style } = sanitizeStored(def, item.inputs ?? {}, item.style ?? {})
-      const instanceId = makeInstanceId(def, inputs)
-      if (indicators.some(i => i.instanceId === instanceId)) continue
-      indicators.push({ instanceId, indicatorId: def.id, inputs, style, hidden: item.hidden === true })
+      indicators.push({ instanceId: nextInstanceId(def.id), indicatorId: def.id, inputs, style, hidden: item.hidden === true })
     }
     return { volumeVisible: parsed.volumeVisible !== false, indicators }
   } catch {
@@ -80,15 +88,20 @@ export function useIndicators() {
     } catch { /* storage full or blocked — non-fatal */ }
   }, [active, volumeVisible, hydrated])
 
+  // Always appends a new instance (overlays unlimited; panels capped). This is
+  // what lets the user stack multiple SMAs/EMAs — each is its own instance.
   const addIndicator = useCallback((id: IndicatorId) => {
     const def = INDICATOR_MAP[id]
-    const inputs = inputDefaults(def)
-    const instanceId = makeInstanceId(def, inputs)
     setActive(prev => {
-      if (prev.find(a => a.instanceId === instanceId)) return prev
       const panelCount = prev.filter(a => INDICATOR_MAP[a.indicatorId].type === 'panel').length
       if (def.type === 'panel' && panelCount >= MAX_PANEL_INDICATORS) return prev
-      return [...prev, { instanceId, indicatorId: id, inputs, style: styleDefaults(def), hidden: false }]
+      return [...prev, {
+        instanceId: nextInstanceId(id),
+        indicatorId: id,
+        inputs: inputDefaults(def),
+        style: styleDefaults(def),
+        hidden: false,
+      }]
     })
   }, [])
 
@@ -96,17 +109,10 @@ export function useIndicators() {
     setActive(prev => prev.filter(a => a.instanceId !== instanceId))
   }, [])
 
+  // instanceId is stable across input edits now, so editing SMA 20 → SMA 50
+  // mutates that one instance in place; it never collides with another.
   const updateInputs = useCallback((instanceId: string, inputs: Record<string, InputValue>) => {
-    setActive(prev => {
-      const target = prev.find(a => a.instanceId === instanceId)
-      if (!target) return prev
-      const newId = makeInstanceId(INDICATOR_MAP[target.indicatorId], inputs)
-      // If the new id collides with a DIFFERENT existing instance, the edit wins:
-      // drop the colliding one so instanceIds stay unique (React keys depend on it).
-      return prev
-        .filter(a => a.instanceId === instanceId || a.instanceId !== newId)
-        .map(a => (a.instanceId === instanceId ? { ...a, inputs, instanceId: newId } : a))
-    })
+    setActive(prev => prev.map(a => (a.instanceId === instanceId ? { ...a, inputs } : a)))
   }, [])
 
   const updateStyle = useCallback((instanceId: string, style: Record<string, string | number>) => {

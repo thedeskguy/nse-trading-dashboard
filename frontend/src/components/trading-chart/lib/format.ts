@@ -1,4 +1,11 @@
 // frontend/src/components/trading-chart/lib/format.ts
+
+// Shared right price-scale width (px) applied to the main chart and every
+// sub-pane so their plot areas — and therefore their time axes — align exactly.
+// Comfortably fits typical ₹ price labels (e.g. ₹1,200.00) and the narrower
+// oscillator value labels, so all panes render at the same width.
+export const PRICE_SCALE_WIDTH = 80
+
 export function formatINR(price: number): string {
   return '₹' + price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }

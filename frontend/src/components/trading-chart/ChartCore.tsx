@@ -16,7 +16,7 @@ import type { Range } from './ChartToolbar'
 import { addOverlaySeries, overlayLineSpec, type OverlayHandle } from './lib/overlaySeries'
 import { ChartLegend, type LegendRowData } from './ChartLegend'
 import { INDICATOR_MAP, legendTitle } from './lib/indicators'
-import { formatINR, formatVolume } from './lib/format'
+import { formatINR, formatVolume, PRICE_SCALE_WIDTH } from './lib/format'
 
 // IST is UTC+05:30 = 19800 seconds ahead of UTC
 const IST_OFFSET_SECONDS = 5 * 3600 + 30 * 60
@@ -142,9 +142,12 @@ export function ChartCore({
     queueMicrotask(() => updateLegendValues())
   }, [updateLegendValues])
 
-  // Rebuild key: add/remove/input changes only. Style and hidden are applied
-  // in the lightweight effect below without recreating the chart.
-  const overlayKey = overlayIndicators.map(i => i.instanceId).join('|')
+  // Rebuild key: add/remove/input changes only. instanceId is now stable across
+  // input edits, so the inputs are folded into the key to trigger a recompute.
+  // Style and hidden are applied in the lightweight effect below (no rebuild).
+  const overlayKey = overlayIndicators
+    .map(i => `${i.instanceId}:${JSON.stringify(i.inputs)}`)
+    .join('|')
 
   useEffect(() => {
     const container = containerRef.current
@@ -163,7 +166,9 @@ export function ChartCore({
         vertLines: { color: '#1e2328' },
         horzLines: { color: '#1e2328' },
       },
-      rightPriceScale: { borderColor: '#2a2e39' },
+      // Fixed price-scale width so the plot area lines up exactly with the
+      // sub-panes (whose value labels are narrower), keeping the time axes aligned.
+      rightPriceScale: { borderColor: '#2a2e39', minimumWidth: PRICE_SCALE_WIDTH },
       timeScale: {
         borderColor: '#2a2e39',
         timeVisible: true,
