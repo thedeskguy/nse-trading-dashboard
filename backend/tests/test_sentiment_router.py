@@ -8,6 +8,7 @@ import main
 from deps import verify_supabase_jwt
 
 app = main.app
+client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
@@ -39,3 +40,26 @@ def test_market_endpoint_shape(monkeypatch):
     for scope in ("india", "world"):
         r = body[scope]
         assert set(r) >= {"score", "label", "confidence", "article_count", "top_headlines"}
+
+
+def test_stock_endpoint_shape(monkeypatch):
+    import tools.fetch_news as fn
+
+    def fake_stock_news(query, limit=25):
+        return [
+            {"title": f"{query} posts record profit", "summary": "",
+             "source": "Test", "url": "u", "published_at": "now"},
+            {"title": f"{query} shares rally on upgrade", "summary": "",
+             "source": "Test", "url": "u", "published_at": "now"},
+            {"title": f"Analysts bullish on {query}", "summary": "",
+             "source": "Test", "url": "u", "published_at": "now"},
+        ]
+    monkeypatch.setattr(fn, "fetch_stock_news", fake_stock_news)
+    monkeypatch.setattr(fn, "fetch_feed_items", lambda scope, limit=40: [])
+
+    res = client.get("/api/v1/sentiment/stock", params={"ticker": "RELIANCE.NS"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ticker"] == "RELIANCE.NS"
+    assert set(body["sentiment"]) >= {"score", "label", "confidence", "top_headlines"}
+    assert set(body["market"]) >= {"india_label", "world_label"}

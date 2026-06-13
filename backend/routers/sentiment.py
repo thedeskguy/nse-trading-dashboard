@@ -51,3 +51,39 @@ async def get_market_sentiment(
         "world": clean_dict(data["world"]),
         "as_of": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.get("/sentiment/stock")
+@limiter.limit("20/minute")
+async def get_stock_sentiment(
+    request: Request,
+    ticker: str = _TICKER,
+    user: dict = Depends(verify_supabase_jwt),
+):
+    """Per-stock news sentiment + India/world reference labels."""
+    cache_key = f"sentiment:stock:{ticker}"
+
+    def _compute():
+        from tools.fetch_news import fetch_stock_news
+        from tools.aggregate_sentiment import build_readout
+        # Strip the exchange suffix for a cleaner news query (RELIANCE.NS -> RELIANCE).
+        query = ticker.split(".")[0]
+        stock = build_readout(fetch_stock_news(query))
+        india = _scope_readout("india")
+        world = _scope_readout("world")
+        return {
+            "sentiment": stock,
+            "market": {"india_label": india["label"], "world_label": world["label"]},
+        }
+
+    try:
+        data = await cached(cache_key, ttl=adaptive_ttl(3600), fn=_compute)
+    except Exception as e:
+        log.exception("Stock sentiment failed for %s: %s", ticker, e)
+        raise HTTPException(status_code=503, detail=f"Stock sentiment failed: {e}")
+
+    return {
+        "ticker": ticker,
+        "sentiment": clean_dict(data["sentiment"]),
+        "market": data["market"],
+    }
