@@ -5,6 +5,8 @@ world). Nothing is blended across scopes — that is a product decision in the
 design spec, not an implementation detail to revisit here.
 """
 
+from tools.sentiment_engine import score_texts
+
 # Score thresholds on a -100..+100 scale.
 BULLISH_THRESHOLD = 20.0
 BEARISH_THRESHOLD = -20.0
@@ -63,3 +65,33 @@ def aggregate(per_headline: list[float]) -> dict:
 
     return {"score": score, "label": label, "confidence": confidence,
             "article_count": count, "insufficient": insufficient}
+
+
+def build_readout(items: list[dict], top_n: int = 6) -> dict:
+    """Score a list of news items and assemble a readout for the API.
+
+    `items` are dicts with keys: title, summary, source, url, published_at.
+    Returns the aggregate() dict plus `top_headlines`: the strongest-signal
+    headlines (largest |sentiment|), each annotated with its own score.
+    """
+    texts = [f"{it.get('title', '')}. {it.get('summary', '')}".strip()
+             for it in items]
+    scores = score_texts(texts)
+
+    agg = aggregate(scores)
+
+    ranked = sorted(
+        zip(items, scores), key=lambda pair: abs(pair[1]), reverse=True
+    )
+    top_headlines = [
+        {
+            "title": it.get("title"),
+            "source": it.get("source"),
+            "url": it.get("url"),
+            "published_at": it.get("published_at"),
+            "sentiment": round(s, 3),
+        }
+        for it, s in ranked[:top_n]
+    ]
+
+    return {**agg, "top_headlines": top_headlines}

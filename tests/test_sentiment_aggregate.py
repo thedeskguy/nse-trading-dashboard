@@ -64,3 +64,41 @@ def test_aggregate_conflicting_lowers_confidence():
     agree = aggregate([0.6, 0.6, 0.6, 0.6, 0.6])
     conflict = aggregate([0.6, -0.6, 0.6, -0.6, 0.6])
     assert conflict["confidence"] < agree["confidence"]
+
+
+from tools.aggregate_sentiment import build_readout
+
+
+def _item(title, summary=""):
+    return {"title": title, "summary": summary, "source": "Test",
+            "url": "http://x", "published_at": "2026-06-14T10:00:00Z"}
+
+
+def test_build_readout_shape_and_headlines():
+    items = [
+        _item("Record profit, beats estimates and raises guidance"),
+        _item("Strong sales growth lifts shares to new high"),
+        _item("Analysts upgrade with bullish outlook"),
+    ]
+    r = build_readout(items)
+    assert set(r) == {"score", "label", "confidence", "article_count",
+                      "insufficient", "top_headlines"}
+    assert r["article_count"] == 3
+    assert r["label"] == "Bullish"
+    assert len(r["top_headlines"]) == 3
+    h = r["top_headlines"][0]
+    assert set(h) >= {"title", "source", "url", "published_at", "sentiment"}
+    assert -1.0 <= h["sentiment"] <= 1.0
+
+
+def test_build_readout_empty():
+    r = build_readout([])
+    assert r["article_count"] == 0
+    assert r["insufficient"] is True
+    assert r["top_headlines"] == []
+
+
+def test_build_readout_caps_top_headlines():
+    items = [_item(f"Profit beats estimates number {i}") for i in range(20)]
+    r = build_readout(items, top_n=5)
+    assert len(r["top_headlines"]) == 5
