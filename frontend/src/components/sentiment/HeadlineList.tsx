@@ -15,7 +15,7 @@ function sentimentChip(score: number) {
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString("en-IN", {
+    return new Date(iso).toLocaleString("en-IN", {
       day: "numeric",
       month: "short",
       hour: "2-digit",
@@ -39,7 +39,7 @@ export function HeadlineList({ headlines }: Props) {
         const chip = sentimentChip(h.sentiment);
         return (
           <div
-            key={i}
+            key={`${h.url}-${i}`}
             className="flex items-start gap-3 rounded-xl bg-muted/30 border border-border/50 px-3 py-2.5 hover:bg-muted/50 transition-colors"
           >
             <div className="flex-1 min-w-0 space-y-0.5">
