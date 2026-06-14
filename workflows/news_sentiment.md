@@ -10,13 +10,13 @@ Produce free, real-time news-sentiment readouts — stock, India market, and wor
 ## Tool Sequence
 ```
 tools/fetch_news.py          →  list of headlines + metadata
-tools/sentiment_engine.py    →  per-headline VADER score
+tools/sentiment_engine.py    →  per-headline score (FinBERT via HF, else VADER)
 tools/aggregate_sentiment.py →  build_readout() → score / label / confidence + top headlines
 ```
 
 1. `fetch_news.py` — market scopes pull free RSS feeds (Moneycontrol, Economic Times, Business Standard, LiveMint for India; MarketWatch, CNBC, Reuters for world). Per-stock (`fetch_stock_news`) primarily uses a free **Google News RSS search** by the company **name** (resolved via yfinance), restricted to the **last 30 days** (`when:30d`) so it reflects the latest news, plus the market RSS pool. If `NEWS_API_KEY` is set, also enriches via GNews free tier; absent → RSS/Google-News only.
 2. `fetch_news.fetch_sector_news(sector)` — industry/sector news for the stock view via Google News (`Indian {sector} sector stocks`, last 30 days). The company name + sector are resolved per ticker by `fetch_fundamentals.get_stock_meta(ticker)` (yfinance); unknown sector → industry readout omitted.
-3. `sentiment_engine.py` — applies the VADER lexicon to each headline locally (no API call, no cost).
+3. `sentiment_engine.score_headlines()` — scores each headline. Prefers **FinBERT** (`ProsusAI/finbert`) via the Hugging Face Inference API when `HF_TOKEN` is set; falls back to local **VADER** when absent or on any failure. Returns the scorer used (`finbert` | `vader`).
 4. `aggregate_sentiment.py` — `build_readout(headlines)` returns `{score, label, confidence, top_headlines}`.
 
 ## Endpoints
@@ -42,8 +42,9 @@ cd backend && python -m pytest tests/test_sentiment_router.py
 | Variable | Required | Notes |
 |---|---|---|
 | `NEWS_API_KEY` | No | GNews free-tier key; absent → RSS-only feeds |
+| `HF_TOKEN` | No | Free Hugging Face token; enables FinBERT scoring, absent → VADER |
 
-No other API keys needed. VADER runs locally.
+VADER runs locally and is the guaranteed fallback when FinBERT (HF Inference API) is unavailable.
 
 ## Edge Cases
 - **Insufficient news** (`< 3` usable articles after fetch) → readout returns a low-confidence Neutral with label `"Insufficient recent news"`. No score is fabricated.
