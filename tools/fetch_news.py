@@ -4,6 +4,7 @@ No paid APIs. If NEWS_API_KEY is absent, the API path is skipped silently and
 RSS alone is used. Network functions are thin wrappers around feedparser; the
 parsing/normalisation logic lives in pure helpers so it is unit-testable.
 """
+import html
 import os
 import re
 
@@ -29,7 +30,9 @@ _TAG_RE = re.compile(r"<[^>]+>")
 
 
 def _strip_html(s: str) -> str:
-    return _TAG_RE.sub("", s or "").replace("&nbsp;", " ").strip()
+    """Strip HTML tags and decode entities (&amp; -> &, &#39; -> ', &nbsp; -> space)."""
+    text = html.unescape(_TAG_RE.sub("", s or ""))
+    return text.replace("\xa0", " ").strip()
 
 
 def _normalize_entry(entry: dict, source: str) -> dict:
@@ -128,9 +131,45 @@ def _fetch_api_news(query: str, limit: int) -> list[dict]:
         return []
 
 
+def _google_publisher(entry) -> str:
+    """Best-effort publisher name from a Google News RSS entry's <source> tag."""
+    src = entry.get("source")
+    if isinstance(src, dict):
+        return src.get("title") or "Google News"
+    return "Google News"
+
+
+def _fetch_google_news(query: str, limit: int = 40) -> list[dict]:
+    """Per-stock news via Google News RSS search (free, no API key, India-localized).
+
+    Google already matched the query, so results are trusted as-is (not
+    re-filtered against the symbol). Never raises — a failure returns [].
+    """
+    import urllib.parse
+    try:
+        url = (
+            "https://news.google.com/rss/search?q="
+            + urllib.parse.quote(query)
+            + "&hl=en-IN&gl=IN&ceid=IN:en"
+        )
+        parsed = feedparser.parse(url)
+        return [
+            _normalize_entry(e, _google_publisher(e))
+            for e in getattr(parsed, "entries", [])
+        ][:limit]
+    except Exception:
+        return []
+
+
 def fetch_stock_news(query: str, limit: int = 25) -> list[dict]:
-    """News mentioning `query`: filter the RSS pool, then add free-tier API hits."""
+    """News for a stock symbol.
+
+    Primary source is a Google News RSS search (real per-ticker coverage,
+    biased toward financial news). The India/world market RSS pool (filtered
+    by symbol) and the optional free-tier GNews API supplement it. Deduped.
+    """
+    google = _fetch_google_news(f"{query} share price NSE", limit=40)
     pool = fetch_feed_items("india", limit=80) + fetch_feed_items("world", limit=40)
-    matched = [it for it in pool if _matches_query(it, query)]
+    matched = google + [it for it in pool if _matches_query(it, query)]
     matched += _fetch_api_news(query, limit)
     return _dedupe(matched)[:limit]

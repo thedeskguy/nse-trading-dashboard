@@ -85,6 +85,9 @@ def test_fetch_stock_news_filters_pool(monkeypatch):
             {"title": "Infosys wins deal", "link": "b", "summary": "", "published": "now"},
         ])
     monkeypatch.setattr(fn.feedparser, "parse", fake_parse)
+    # Isolate the pool-filter path: Google News is the primary per-stock source
+    # and is exercised separately below.
+    monkeypatch.setattr(fn, "_fetch_google_news", lambda q, limit=40: [])
     monkeypatch.delenv("NEWS_API_KEY", raising=False)
     items = fn.fetch_stock_news("Reliance")
     assert items, "expected at least one matching item"
@@ -93,3 +96,43 @@ def test_fetch_stock_news_filters_pool(monkeypatch):
 
 def _matches_query_safe(item, q):
     return q.lower() in f"{item['title']} {item['summary']}".lower()
+
+
+def test_strip_html_unescapes_entities():
+    assert fn._strip_html("AT&amp;T says it&#39;s &nbsp;up") == "AT&T says it's  up"
+    assert fn._strip_html("<b>F&amp;O</b> Talk") == "F&O Talk"
+
+
+def test_fetch_google_news_normalizes(monkeypatch):
+    def fake_parse(url):
+        assert "news.google.com/rss/search" in url
+        return _FakeParsed([
+            {"title": "Reliance shares rally - ET", "link": "g1",
+             "summary": "", "published": "now", "source": {"title": "ET"}},
+            {"title": "Reliance Q1 beats - Mint", "link": "g2",
+             "summary": "", "published": "now"},
+        ])
+    monkeypatch.setattr(fn.feedparser, "parse", fake_parse)
+    items = fn._fetch_google_news("RELIANCE share price NSE")
+    assert len(items) == 2
+    assert items[0]["source"] == "ET"          # from <source> tag
+    assert items[1]["source"] == "Google News"  # fallback when no source tag
+
+
+def test_fetch_google_news_never_raises(monkeypatch):
+    def boom(url):
+        raise RuntimeError("network down")
+    monkeypatch.setattr(fn.feedparser, "parse", boom)
+    assert fn._fetch_google_news("X") == []
+
+
+def test_fetch_stock_news_includes_google(monkeypatch):
+    google_items = [
+        {"title": "RELIANCE jumps on upgrade", "summary": "", "source": "ET",
+         "url": "g", "published_at": "now"},
+    ]
+    monkeypatch.setattr(fn, "_fetch_google_news", lambda q, limit=40: google_items)
+    monkeypatch.setattr(fn, "fetch_feed_items", lambda scope, limit=40: [])
+    monkeypatch.delenv("NEWS_API_KEY", raising=False)
+    items = fn.fetch_stock_news("RELIANCE")
+    assert any(i["title"] == "RELIANCE jumps on upgrade" for i in items)
