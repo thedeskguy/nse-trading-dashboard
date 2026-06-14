@@ -20,10 +20,19 @@ router = APIRouter()
 _TICKER = Query(..., pattern=r"^[A-Z0-9.\-&]{1,30}$", description="Ticker e.g. RELIANCE.NS")
 
 
+def _snapshot_or_compute(scope: str, key: str, compute):
+    """Return a stored nightly FinBERT snapshot for (scope,key), else compute on-demand."""
+    from tools.sentiment_store import get_snapshot
+    snap = get_snapshot(scope, key)
+    return snap if snap is not None else compute()
+
+
 def _scope_readout(scope: str) -> dict:
     from tools.fetch_news import fetch_feed_items
     from tools.aggregate_sentiment import build_readout
-    return build_readout(fetch_feed_items(scope, limit=60))
+    return _snapshot_or_compute(
+        "market", scope, lambda: build_readout(fetch_feed_items(scope, limit=60))
+    )
 
 
 @router.get("/sentiment/market")
@@ -72,9 +81,16 @@ async def get_stock_sentiment(
         meta = get_stock_meta(ticker)
         sector = meta.get("sector")
         # Search news by the company name (e.g. "Rajesh Exports"), not the symbol.
-        stock = build_readout(fetch_stock_news(query, name=meta.get("name")))
+        stock = _snapshot_or_compute(
+            "stock", query,
+            lambda: build_readout(fetch_stock_news(query, name=meta.get("name"))),
+        )
         # Industry/sector readout: how the stock's sector is doing in the market.
-        industry = build_readout(fetch_sector_news(sector)) if sector else None
+        industry = (
+            _snapshot_or_compute("sector", sector,
+                                 lambda: build_readout(fetch_sector_news(sector)))
+            if sector else None
+        )
         india = _scope_readout("india")
         world = _scope_readout("world")
         return {

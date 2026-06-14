@@ -18,6 +18,15 @@ def override_auth():
     app.dependency_overrides.pop(verify_supabase_jwt, None)
 
 
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    # The endpoints cache results in-process; clear between tests so a cached
+    # result from one test does not leak into another (e.g. snapshot vs compute).
+    from services.cache import _store
+    _store.clear()
+    yield
+
+
 def test_market_endpoint_shape(monkeypatch):
     import tools.fetch_news as fn
 
@@ -89,3 +98,19 @@ def test_stock_endpoint_industry_null_when_sector_unknown(monkeypatch):
     body = res.json()
     assert body["sector"] is None
     assert body["industry"] is None
+
+
+def test_market_endpoint_uses_snapshot(monkeypatch):
+    import tools.sentiment_store as ss
+
+    def fake_snapshot(scope, key):
+        return {"score": 55.0, "label": "Bullish", "confidence": 90,
+                "article_count": 60, "insufficient": False,
+                "top_headlines": [], "scored_by": "finbert"}
+    monkeypatch.setattr(ss, "get_snapshot", fake_snapshot)
+
+    res = client.get("/api/v1/sentiment/market")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["india"]["scored_by"] == "finbert"
+    assert body["india"]["label"] == "Bullish"
