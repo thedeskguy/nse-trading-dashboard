@@ -42,7 +42,9 @@ def test_finbert_blank_inputs_score_zero_without_call(monkeypatch):
     monkeypatch.setenv("HF_TOKEN", "hf_test")
 
     def fake_post(url, headers=None, json=None, timeout=None):
+        assert "router.huggingface.co" in url           # current HF endpoint
         assert json["inputs"] == ["real headline"]
+        assert json["parameters"] == {"top_k": None}     # all-label, per-input
         return _FakeResp(200, [_finbert_preds(0.6, 0.2, 0.2)])
     monkeypatch.setattr(se.requests, "post", fake_post)
 

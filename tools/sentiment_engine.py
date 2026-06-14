@@ -8,7 +8,8 @@ import os
 import requests
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-_FINBERT_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
+# HF Inference Providers router (the classic api-inference host was retired).
+_FINBERT_URL = "https://router.huggingface.co/hf-inference/models/ProsusAI/finbert"
 
 _analyzer = SentimentIntensityAnalyzer()
 
@@ -52,7 +53,9 @@ def score_texts_finbert_api(texts: list[str]) -> list[float]:
         resp = requests.post(
             _FINBERT_URL,
             headers={"Authorization": f"Bearer {token}"},
-            json={"inputs": payload_texts, "options": {"wait_for_model": True}},
+            # top_k=None returns all 3 class scores per input as one list each;
+            # without it, batches collapse to a flattened top-1 result.
+            json={"inputs": payload_texts, "parameters": {"top_k": None}},
             timeout=20,
         )
     except Exception as e:
