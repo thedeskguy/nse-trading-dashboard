@@ -3,6 +3,13 @@ from tools.aggregate_sentiment import (
     aggregate, build_readout,
     BULLISH_THRESHOLD, BEARISH_THRESHOLD, MIN_ARTICLES,
 )
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_hf_token(monkeypatch):
+    # Keep readout scoring deterministic + offline: force the VADER path.
+    monkeypatch.delenv("HF_TOKEN", raising=False)
 
 
 def test_score_texts_signs():
@@ -78,7 +85,8 @@ def test_build_readout_shape_and_headlines():
     ]
     r = build_readout(items)
     assert set(r) == {"score", "label", "confidence", "article_count",
-                      "insufficient", "top_headlines"}
+                      "insufficient", "top_headlines", "scored_by"}
+    assert r["scored_by"] == "vader"
     assert r["article_count"] == 3
     assert r["label"] == "Bullish"
     assert len(r["top_headlines"]) == 3

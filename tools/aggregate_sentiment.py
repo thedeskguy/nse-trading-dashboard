@@ -5,7 +5,7 @@ world). Nothing is blended across scopes — that is a product decision in the
 design spec, not an implementation detail to revisit here.
 """
 
-from tools.sentiment_engine import score_texts
+from tools.sentiment_engine import score_headlines
 
 # Score thresholds on a -100..+100 scale.
 BULLISH_THRESHOLD = 20.0
@@ -76,7 +76,7 @@ def build_readout(items: list[dict], top_n: int = 6) -> dict:
     """
     texts = [f"{it.get('title', '')}. {it.get('summary', '')}".strip()
              for it in items]
-    scores = score_texts(texts)
+    scores, scored_by = score_headlines(texts)
 
     agg = aggregate(scores)
 
@@ -94,4 +94,4 @@ def build_readout(items: list[dict], top_n: int = 6) -> dict:
         for it, s in ranked[:top_n]
     ]
 
-    return {**agg, "top_headlines": top_headlines}
+    return {**agg, "top_headlines": top_headlines, "scored_by": scored_by}
