@@ -16,6 +16,7 @@ export interface SentimentReadout {
   article_count: number;
   insufficient: boolean;
   top_headlines: Headline[];
+  scored_by?: "finbert" | "vader";
 }
 
 export interface MarketSentimentResponse {

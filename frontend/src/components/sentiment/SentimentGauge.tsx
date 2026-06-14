@@ -39,9 +39,19 @@ export function SentimentGauge({ title, readout }: Props) {
     <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-          {title}
-        </h3>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider truncate">
+            {title}
+          </h3>
+          {readout.scored_by && (
+            <span
+              className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/60 border border-border rounded px-1 py-0.5"
+              title={`Scored by ${readout.scored_by === "finbert" ? "FinBERT (finance-trained)" : "VADER"}`}
+            >
+              {readout.scored_by === "finbert" ? "FinBERT" : "VADER"}
+            </span>
+          )}
+        </div>
         <span
           className={cn(
             "inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border",
