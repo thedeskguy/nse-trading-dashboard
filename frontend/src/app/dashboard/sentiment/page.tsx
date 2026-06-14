@@ -203,11 +203,24 @@ export default function SentimentPage() {
                     World: {stockData.market.world_label}
                   </Badge>
                 </div>
-                <SentimentGauge
-                  title={`${stockData.ticker.replace(".NS", "")} Sentiment`}
-                  readout={stockData.sentiment}
-                />
-                <HeadlineList headlines={stockData.sentiment.top_headlines} />
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <SentimentGauge
+                      title={`${stockData.ticker.replace(".NS", "")} — Stock`}
+                      readout={stockData.sentiment}
+                    />
+                    <HeadlineList headlines={stockData.sentiment.top_headlines} />
+                  </div>
+                  {stockData.industry && (
+                    <div className="space-y-3">
+                      <SentimentGauge
+                        title={`${stockData.sector ?? "Industry"} — Sector`}
+                        readout={stockData.industry}
+                      />
+                      <HeadlineList headlines={stockData.industry.top_headlines} />
+                    </div>
+                  )}
+                </div>
               </>
             ) : null}
           </div>

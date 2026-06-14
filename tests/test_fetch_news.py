@@ -136,3 +136,21 @@ def test_fetch_stock_news_includes_google(monkeypatch):
     monkeypatch.delenv("NEWS_API_KEY", raising=False)
     items = fn.fetch_stock_news("RELIANCE")
     assert any(i["title"] == "RELIANCE jumps on upgrade" for i in items)
+
+
+def test_fetch_sector_news_empty_sector_returns_empty():
+    assert fn.fetch_sector_news("") == []
+    assert fn.fetch_sector_news(None) == []
+
+
+def test_fetch_sector_news_queries_google(monkeypatch):
+    seen = {}
+
+    def fake_google(query, limit=25):
+        seen["q"] = query
+        return [{"title": "Energy stocks rally", "summary": "", "source": "ET",
+                 "url": "e", "published_at": "now"}]
+    monkeypatch.setattr(fn, "_fetch_google_news", fake_google)
+    items = fn.fetch_sector_news("Energy")
+    assert items and items[0]["title"] == "Energy stocks rally"
+    assert "Energy" in seen["q"] and "sector" in seen["q"].lower()

@@ -173,3 +173,15 @@ def fetch_stock_news(query: str, limit: int = 25) -> list[dict]:
     matched = google + [it for it in pool if _matches_query(it, query)]
     matched += _fetch_api_news(query, limit)
     return _dedupe(matched)[:limit]
+
+
+def fetch_sector_news(sector: str, limit: int = 25) -> list[dict]:
+    """Industry/sector news via Google News RSS search (free). Never raises.
+
+    `sector` is a GICS sector name (e.g. 'Energy', 'Financial Services').
+    Empty/None sector → []. Used to show how a stock's industry is doing.
+    """
+    if not sector:
+        return []
+    items = _fetch_google_news(f"Indian {sector} sector stocks", limit=limit)
+    return _dedupe(items)[:limit]

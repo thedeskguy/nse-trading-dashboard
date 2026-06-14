@@ -488,3 +488,16 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
 
     grade = "Strong" if total >= 65 else ("Fair" if total >= 45 else "Weak")
     return {"score": total, "grade": grade, "breakdown": breakdown}
+
+
+def get_sector(ticker: str) -> str | None:
+    """Resolve a ticker's GICS sector (e.g. 'Energy', 'Financial Services').
+
+    Lightweight yfinance lookup used to drive industry-sentiment news queries.
+    Returns None on any failure — callers must degrade gracefully.
+    """
+    try:
+        sector = (yf.Ticker(ticker).info or {}).get("sector")
+        return sector or None
+    except Exception:
+        return None

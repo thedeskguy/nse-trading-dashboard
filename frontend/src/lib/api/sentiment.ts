@@ -27,6 +27,8 @@ export interface MarketSentimentResponse {
 export interface StockSentimentResponse {
   ticker: string;
   sentiment: SentimentReadout;
+  sector: string | null;
+  industry: SentimentReadout | null;
   market: { india_label: string; world_label: string };
 }
 

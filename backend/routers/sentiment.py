@@ -64,15 +64,21 @@ async def get_stock_sentiment(
     cache_key = f"sentiment:stock:{ticker}"
 
     def _compute():
-        from tools.fetch_news import fetch_stock_news
+        from tools.fetch_news import fetch_stock_news, fetch_sector_news
+        from tools.fetch_fundamentals import get_sector
         from tools.aggregate_sentiment import build_readout
         # Strip the exchange suffix for a cleaner news query (RELIANCE.NS -> RELIANCE).
         query = ticker.split(".")[0]
         stock = build_readout(fetch_stock_news(query))
+        # Industry/sector readout: how the stock's sector is doing in the market.
+        sector = get_sector(ticker)
+        industry = build_readout(fetch_sector_news(sector)) if sector else None
         india = _scope_readout("india")
         world = _scope_readout("world")
         return {
             "sentiment": stock,
+            "sector": sector,
+            "industry": industry,
             "market": {"india_label": india["label"], "world_label": world["label"]},
         }
 
@@ -85,5 +91,7 @@ async def get_stock_sentiment(
     return {
         "ticker": ticker,
         "sentiment": clean_dict(data["sentiment"]),
+        "sector": data["sector"],
+        "industry": clean_dict(data["industry"]) if data["industry"] else None,
         "market": data["market"],
     }

@@ -54,8 +54,18 @@ def test_stock_endpoint_shape(monkeypatch):
             {"title": f"Analysts bullish on {query}", "summary": "",
              "source": "Test", "url": "u", "published_at": "now"},
         ]
+    import tools.fetch_fundamentals as ff
     monkeypatch.setattr(fn, "fetch_stock_news", fake_stock_news)
     monkeypatch.setattr(fn, "fetch_feed_items", lambda scope, limit=40: [])
+    monkeypatch.setattr(ff, "get_sector", lambda t: "Energy")
+    monkeypatch.setattr(fn, "fetch_sector_news", lambda sector, limit=25: [
+        {"title": f"{sector} stocks rally", "summary": "", "source": "ET",
+         "url": "s1", "published_at": "now"},
+        {"title": f"{sector} sector outlook strong", "summary": "", "source": "Mint",
+         "url": "s2", "published_at": "now"},
+        {"title": f"{sector} demand rises sharply", "summary": "", "source": "BS",
+         "url": "s3", "published_at": "now"},
+    ])
 
     res = client.get("/api/v1/sentiment/stock", params={"ticker": "RELIANCE.NS"})
     assert res.status_code == 200
@@ -63,3 +73,19 @@ def test_stock_endpoint_shape(monkeypatch):
     assert body["ticker"] == "RELIANCE.NS"
     assert set(body["sentiment"]) >= {"score", "label", "confidence", "top_headlines"}
     assert set(body["market"]) >= {"india_label", "world_label"}
+    assert body["sector"] == "Energy"
+    assert set(body["industry"]) >= {"score", "label", "confidence", "top_headlines"}
+
+
+def test_stock_endpoint_industry_null_when_sector_unknown(monkeypatch):
+    import tools.fetch_news as fn
+    import tools.fetch_fundamentals as ff
+    monkeypatch.setattr(fn, "fetch_stock_news", lambda q, limit=25: [])
+    monkeypatch.setattr(fn, "fetch_feed_items", lambda scope, limit=40: [])
+    monkeypatch.setattr(ff, "get_sector", lambda t: None)
+
+    res = client.get("/api/v1/sentiment/stock", params={"ticker": "UNKNOWN.NS"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["sector"] is None
+    assert body["industry"] is None
