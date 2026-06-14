@@ -139,17 +139,20 @@ def _google_publisher(entry) -> str:
     return "Google News"
 
 
-def _fetch_google_news(query: str, limit: int = 40) -> list[dict]:
-    """Per-stock news via Google News RSS search (free, no API key, India-localized).
+def _fetch_google_news(query: str, limit: int = 40, recency_days: int | None = None) -> list[dict]:
+    """Per-stock / sector news via Google News RSS search (free, no API key, India-localized).
 
-    Google already matched the query, so results are trusted as-is (not
-    re-filtered against the symbol). Never raises — a failure returns [].
+    `recency_days` restricts results to the last N days via Google's `when:Nd`
+    search operator — this drops evergreen "share price today" listicles so the
+    readout reflects the latest news. Google already matched the query, so
+    results are trusted as-is. Never raises — a failure returns [].
     """
     import urllib.parse
+    q = f"{query} when:{recency_days}d" if recency_days else query
     try:
         url = (
             "https://news.google.com/rss/search?q="
-            + urllib.parse.quote(query)
+            + urllib.parse.quote(q)
             + "&hl=en-IN&gl=IN&ceid=IN:en"
         )
         parsed = feedparser.parse(url)
@@ -161,17 +164,28 @@ def _fetch_google_news(query: str, limit: int = 40) -> list[dict]:
         return []
 
 
-def fetch_stock_news(query: str, limit: int = 25) -> list[dict]:
-    """News for a stock symbol.
+# How many days back the per-stock and sector news searches look. Restricting
+# to a recent window is what keeps the readout reflecting the LATEST news.
+STOCK_NEWS_DAYS = 30
+SECTOR_NEWS_DAYS = 30
 
-    Primary source is a Google News RSS search (real per-ticker coverage,
-    biased toward financial news). The India/world market RSS pool (filtered
-    by symbol) and the optional free-tier GNews API supplement it. Deduped.
+
+def fetch_stock_news(query: str, name: str | None = None, limit: int = 25) -> list[dict]:
+    """Recent news for a stock.
+
+    Primary source is a Google News search for the company NAME (e.g.
+    "Rajesh Exports") — or the symbol when the name is unknown — restricted to
+    the last STOCK_NEWS_DAYS days, so the readout reflects the latest news
+    rather than evergreen "share price" pages. The India/world market RSS pool
+    (matched by name or symbol) and the optional free-tier GNews API supplement it.
     """
-    google = _fetch_google_news(f"{query} share price NSE", limit=40)
+    term = (name or query).strip()
+    google = _fetch_google_news(f"{term} stock", limit=40, recency_days=STOCK_NEWS_DAYS)
     pool = fetch_feed_items("india", limit=80) + fetch_feed_items("world", limit=40)
-    matched = google + [it for it in pool if _matches_query(it, query)]
-    matched += _fetch_api_news(query, limit)
+    matched = google + [
+        it for it in pool if _matches_query(it, term) or _matches_query(it, query)
+    ]
+    matched += _fetch_api_news(term, limit)
     return _dedupe(matched)[:limit]
 
 
@@ -183,5 +197,7 @@ def fetch_sector_news(sector: str, limit: int = 25) -> list[dict]:
     """
     if not sector:
         return []
-    items = _fetch_google_news(f"Indian {sector} sector stocks", limit=limit)
+    items = _fetch_google_news(
+        f"Indian {sector} sector stocks", limit=limit, recency_days=SECTOR_NEWS_DAYS
+    )
     return _dedupe(items)[:limit]

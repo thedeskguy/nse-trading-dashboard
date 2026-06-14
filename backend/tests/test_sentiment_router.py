@@ -45,7 +45,7 @@ def test_market_endpoint_shape(monkeypatch):
 def test_stock_endpoint_shape(monkeypatch):
     import tools.fetch_news as fn
 
-    def fake_stock_news(query, limit=25):
+    def fake_stock_news(query, name=None, limit=25):
         return [
             {"title": f"{query} posts record profit", "summary": "",
              "source": "Test", "url": "u", "published_at": "now"},
@@ -57,7 +57,7 @@ def test_stock_endpoint_shape(monkeypatch):
     import tools.fetch_fundamentals as ff
     monkeypatch.setattr(fn, "fetch_stock_news", fake_stock_news)
     monkeypatch.setattr(fn, "fetch_feed_items", lambda scope, limit=40: [])
-    monkeypatch.setattr(ff, "get_sector", lambda t: "Energy")
+    monkeypatch.setattr(ff, "get_stock_meta", lambda t: {"name": "Reliance", "sector": "Energy"})
     monkeypatch.setattr(fn, "fetch_sector_news", lambda sector, limit=25: [
         {"title": f"{sector} stocks rally", "summary": "", "source": "ET",
          "url": "s1", "published_at": "now"},
@@ -80,9 +80,9 @@ def test_stock_endpoint_shape(monkeypatch):
 def test_stock_endpoint_industry_null_when_sector_unknown(monkeypatch):
     import tools.fetch_news as fn
     import tools.fetch_fundamentals as ff
-    monkeypatch.setattr(fn, "fetch_stock_news", lambda q, limit=25: [])
+    monkeypatch.setattr(fn, "fetch_stock_news", lambda q, name=None, limit=25: [])
     monkeypatch.setattr(fn, "fetch_feed_items", lambda scope, limit=40: [])
-    monkeypatch.setattr(ff, "get_sector", lambda t: None)
+    monkeypatch.setattr(ff, "get_stock_meta", lambda t: {"name": None, "sector": None})
 
     res = client.get("/api/v1/sentiment/stock", params={"ticker": "UNKNOWN.NS"})
     assert res.status_code == 200

@@ -87,7 +87,7 @@ def test_fetch_stock_news_filters_pool(monkeypatch):
     monkeypatch.setattr(fn.feedparser, "parse", fake_parse)
     # Isolate the pool-filter path: Google News is the primary per-stock source
     # and is exercised separately below.
-    monkeypatch.setattr(fn, "_fetch_google_news", lambda q, limit=40: [])
+    monkeypatch.setattr(fn, "_fetch_google_news", lambda q, limit=40, recency_days=None: [])
     monkeypatch.delenv("NEWS_API_KEY", raising=False)
     items = fn.fetch_stock_news("Reliance")
     assert items, "expected at least one matching item"
@@ -131,11 +131,37 @@ def test_fetch_stock_news_includes_google(monkeypatch):
         {"title": "RELIANCE jumps on upgrade", "summary": "", "source": "ET",
          "url": "g", "published_at": "now"},
     ]
-    monkeypatch.setattr(fn, "_fetch_google_news", lambda q, limit=40: google_items)
+    monkeypatch.setattr(fn, "_fetch_google_news", lambda q, limit=40, recency_days=None: google_items)
     monkeypatch.setattr(fn, "fetch_feed_items", lambda scope, limit=40: [])
     monkeypatch.delenv("NEWS_API_KEY", raising=False)
     items = fn.fetch_stock_news("RELIANCE")
     assert any(i["title"] == "RELIANCE jumps on upgrade" for i in items)
+
+
+def test_fetch_stock_news_uses_company_name(monkeypatch):
+    seen = {}
+
+    def fake_google(query, limit=40, recency_days=None):
+        seen["q"] = query
+        seen["days"] = recency_days
+        return []
+    monkeypatch.setattr(fn, "_fetch_google_news", fake_google)
+    monkeypatch.setattr(fn, "fetch_feed_items", lambda scope, limit=40: [])
+    monkeypatch.delenv("NEWS_API_KEY", raising=False)
+    fn.fetch_stock_news("RAJESHEXPO", name="Rajesh Exports")
+    assert "Rajesh Exports" in seen["q"]      # name, not the symbol
+    assert seen["days"] == fn.STOCK_NEWS_DAYS  # recency-restricted
+
+
+def test_fetch_google_news_applies_recency(monkeypatch):
+    seen = {}
+
+    def fake_parse(url):
+        seen["url"] = url
+        return _FakeParsed([])
+    monkeypatch.setattr(fn.feedparser, "parse", fake_parse)
+    fn._fetch_google_news("Reliance stock", recency_days=30)
+    assert "when%3A30d" in seen["url"] or "when:30d" in seen["url"]
 
 
 def test_fetch_sector_news_empty_sector_returns_empty():
@@ -146,11 +172,13 @@ def test_fetch_sector_news_empty_sector_returns_empty():
 def test_fetch_sector_news_queries_google(monkeypatch):
     seen = {}
 
-    def fake_google(query, limit=25):
+    def fake_google(query, limit=25, recency_days=None):
         seen["q"] = query
+        seen["days"] = recency_days
         return [{"title": "Energy stocks rally", "summary": "", "source": "ET",
                  "url": "e", "published_at": "now"}]
     monkeypatch.setattr(fn, "_fetch_google_news", fake_google)
     items = fn.fetch_sector_news("Energy")
     assert items and items[0]["title"] == "Energy stocks rally"
     assert "Energy" in seen["q"] and "sector" in seen["q"].lower()
+    assert seen["days"] == fn.SECTOR_NEWS_DAYS

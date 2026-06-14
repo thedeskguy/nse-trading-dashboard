@@ -490,14 +490,27 @@ def score_fundamentals(data: dict, current_price: float = None) -> dict:
     return {"score": total, "grade": grade, "breakdown": breakdown}
 
 
-def get_sector(ticker: str) -> str | None:
-    """Resolve a ticker's GICS sector (e.g. 'Energy', 'Financial Services').
+def _clean_company_name(name: str | None) -> str | None:
+    """Strip the legal suffix so the name reads as news would refer to it.
 
-    Lightweight yfinance lookup used to drive industry-sentiment news queries.
-    Returns None on any failure — callers must degrade gracefully.
+    'Rajesh Exports Limited' -> 'Rajesh Exports'.
+    """
+    if not name:
+        return None
+    n = re.sub(r"\s+(Limited|Ltd\.?)$", "", name.strip(), flags=re.IGNORECASE)
+    return n.strip() or None
+
+
+def get_stock_meta(ticker: str) -> dict:
+    """Resolve a ticker's news-friendly company name + GICS sector in one lookup.
+
+    Returns {"name": str|None, "sector": str|None}. The name (e.g. 'Rajesh
+    Exports') drives per-stock news search; the sector drives industry news.
+    Any failure returns Nones — callers must degrade gracefully.
     """
     try:
-        sector = (yf.Ticker(ticker).info or {}).get("sector")
-        return sector or None
+        info = yf.Ticker(ticker).info or {}
+        name = _clean_company_name(info.get("longName") or info.get("shortName"))
+        return {"name": name, "sector": info.get("sector") or None}
     except Exception:
-        return None
+        return {"name": None, "sector": None}

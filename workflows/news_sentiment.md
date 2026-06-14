@@ -14,8 +14,8 @@ tools/sentiment_engine.py    →  per-headline VADER score
 tools/aggregate_sentiment.py →  build_readout() → score / label / confidence + top headlines
 ```
 
-1. `fetch_news.py` — market scopes pull free RSS feeds (Moneycontrol, Economic Times, Business Standard, LiveMint for India; MarketWatch, CNBC, Reuters for world). Per-stock (`fetch_stock_news`) primarily uses a free **Google News RSS search** (`{symbol} share price NSE`, India-localized) plus the market RSS pool. If `NEWS_API_KEY` is set, also enriches via GNews free tier; absent → RSS/Google-News only.
-2. `fetch_news.fetch_sector_news(sector)` — industry/sector news for the stock view via Google News (`Indian {sector} sector stocks`). The sector is resolved per ticker by `fetch_fundamentals.get_sector(ticker)` (yfinance); unknown sector → industry readout omitted.
+1. `fetch_news.py` — market scopes pull free RSS feeds (Moneycontrol, Economic Times, Business Standard, LiveMint for India; MarketWatch, CNBC, Reuters for world). Per-stock (`fetch_stock_news`) primarily uses a free **Google News RSS search** by the company **name** (resolved via yfinance), restricted to the **last 30 days** (`when:30d`) so it reflects the latest news, plus the market RSS pool. If `NEWS_API_KEY` is set, also enriches via GNews free tier; absent → RSS/Google-News only.
+2. `fetch_news.fetch_sector_news(sector)` — industry/sector news for the stock view via Google News (`Indian {sector} sector stocks`, last 30 days). The company name + sector are resolved per ticker by `fetch_fundamentals.get_stock_meta(ticker)` (yfinance); unknown sector → industry readout omitted.
 3. `sentiment_engine.py` — applies the VADER lexicon to each headline locally (no API call, no cost).
 4. `aggregate_sentiment.py` — `build_readout(headlines)` returns `{score, label, confidence, top_headlines}`.
 
