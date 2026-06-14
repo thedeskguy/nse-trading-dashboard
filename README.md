@@ -37,7 +37,8 @@ A dedicated **Market Sentiment** page (`/dashboard/sentiment`) surfaces news-dri
 - **Independent readouts, never blended** — a stock's own news sentiment (its upside/downside call), **its industry/sector** ("how's the industry doing"), plus India and world market context, each shown side by side. The stock view pairs the stock gauge with its sector gauge; India and world sit below as macro context. The sector is resolved per ticker (yfinance) and omitted gracefully when unknown.
 - **Each readout:** a score (−100…+100), a label (Bullish / Neutral / Bearish), a confidence (0–100, based on article count and signal agreement), and the top headlines that drove it. Fewer than 3 usable articles → "Insufficient recent news" state; no fabricated signal is shown.
 - **100% free, no paid APIs required.** Market scopes use free RSS feeds — Moneycontrol, Economic Times, Business Standard, LiveMint (India); MarketWatch, CNBC, Reuters (world). **Per-stock** sentiment uses a free **Google News RSS search** by company name (e.g. `Rajesh Exports stock`, India-localized), restricted to the **last 30 days** so the readout reflects the latest news rather than evergreen "share price" pages, supplemented by the market RSS pool. Optional free-tier GNews enrichment activates when a `NEWS_API_KEY` env var is set; absent → RSS/Google-News only, no degraded behaviour.
-- **Scoring engine:** with a free `HF_TOKEN` set, per-headline scoring uses **FinBERT** (`ProsusAI/finbert`) via the Hugging Face Inference API — finance-trained, so "lower circuit" / "misses estimates" read correctly; without it (or on rate-limit/error) it falls back to **VADER**. Each readout reports `scored_by` (`finbert` | `vader`). (Nightly FinBERT precompute + Supabase storage is Phase 2b, not yet built.)
+- **Scoring engine:** with a free `HF_TOKEN` set, per-headline scoring uses **FinBERT** (`ProsusAI/finbert`) via the Hugging Face Inference API — finance-trained, so "lower circuit" / "misses estimates" read correctly; without it (or on rate-limit/error) it falls back to **VADER**. Each readout reports `scored_by` (`finbert` | `vader`).
+- **Nightly precompute:** a free GitHub Actions job (`sentiment-pipeline.yml`, 17:00 IST) scores India/world + the Nifty 50 + their sectors with **local FinBERT** into Supabase `sentiment_snapshots`; the backend reads this store first (instant, FinBERT-quality for common names) and falls back to on-demand HF/VADER for the long tail.
 - **Backend endpoints:** `GET /api/v1/sentiment/market?scope=india|world` and `GET /api/v1/sentiment/stock?ticker=…`
 - News-sentiment bias only — not investment advice.
 
@@ -129,8 +130,12 @@ The Index Options page is accessible via the top navigation inside the app.
 │   ├── eod_pipeline.py        # Nightly EOD OHLCV + scan precompute pipeline
 │   ├── requirements-pipeline.txt  # Deps for eod_pipeline (CI/GitHub Actions)
 │   ├── fetch_news.py          # Free RSS (+ optional GNews) news fetcher for sentiment
-│   ├── sentiment_engine.py    # VADER sentiment scoring (free, local)
-│   └── aggregate_sentiment.py # Headlines → score/label/confidence readout
+│   ├── sentiment_engine.py    # Per-headline scoring: FinBERT (HF API) or VADER
+│   ├── aggregate_sentiment.py # Headlines → score/label/confidence readout
+│   ├── finbert_local.py       # Local FinBERT scorer (nightly CI job only)
+│   ├── sentiment_store.py     # Supabase read/write for sentiment_snapshots
+│   ├── sentiment_pipeline.py  # Nightly FinBERT precompute (market + Nifty 50 + sectors)
+│   └── requirements-sentiment.txt  # Deps for the nightly sentiment job (CI)
 ├── tests/
 │   └── test_options_fixes.py  # Unit tests for options chain and signal edge cases
 ├── workflows/
@@ -274,7 +279,7 @@ requests
 
 ## Roadmap
 
-- [ ] FinBERT nightly sentiment scoring — EOD pipeline precompute + Supabase `sentiment_snapshots` table + trend-vs-yesterday deltas (Phase 2 of News Sentiment)
+- [x] FinBERT sentiment scoring — on-demand (HF Inference API) + nightly local-FinBERT precompute into Supabase `sentiment_snapshots` (Phase 2 of News Sentiment). Trend-vs-yesterday deltas remain a future add.
 - [ ] Compute Implied Volatility via Black-Scholes
 - [ ] Backtest signal scoring over 3-year Nifty 100 history
 - [ ] Options Greeks (Delta, Theta, Gamma) per recommendation

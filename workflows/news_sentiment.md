@@ -51,6 +51,13 @@ VADER runs locally and is the guaranteed fallback when FinBERT (HF Inference API
 - **Dead RSS feed** — each feed is fetched independently; failures are caught and skipped. A dead feed never raises or blocks other feeds.
 - **Missing `NEWS_API_KEY`** — GNews enrichment is skipped silently; RSS-only path is the default and fully functional.
 
-## Phase 2 (upcoming — not yet built)
-- **FinBERT nightly scoring** — transformer-based sentiment precomputed in the GitHub Actions EOD pipeline (16:15 IST, Mon–Fri), stored in a Supabase `sentiment_snapshots` table. Backend reads snapshots; VADER live scoring remains as intraday fallback.
-- **Trend deltas** — compare today's score against yesterday's snapshot to surface sentiment momentum.
+## Nightly FinBERT store (Phase 2b — built)
+- **Job:** `tools/sentiment_pipeline.py`, run by `.github/workflows/sentiment-pipeline.yml` (17:00 IST, Mon–Fri; after the EOD price job). Installs CPU `torch` + `tools/requirements-sentiment.txt`.
+- **What it does:** scores India/world market + the **Nifty 50** + their sectors with **local FinBERT** (`tools/finbert_local.py`, transformers/torch — CI only, never on the Render backend) and upserts readouts to Supabase `sentiment_snapshots` via `tools/sentiment_store.py`.
+- **Backend read path:** `routers/sentiment.py` calls `sentiment_store.get_snapshot(scope, key)` first; on a miss (long-tail stock, or Supabase not configured) it computes on-demand (HF FinBERT → VADER).
+- **Required GitHub secrets:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (already used by the EOD price pipeline).
+- **One-time setup:** create the `sentiment_snapshots` table (see the Phase 2b plan's DDL), then trigger the workflow manually once (Actions → "Sentiment pipeline" → Run workflow).
+
+## Future
+- **Trend deltas** — compare today's score against yesterday's snapshot to surface sentiment momentum (snapshots now accrue, so this is feasible).
+- **Wider nightly coverage** — beyond Nifty 50.
