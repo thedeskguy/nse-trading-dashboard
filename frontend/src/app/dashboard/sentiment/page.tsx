@@ -155,45 +155,7 @@ export default function SentimentPage() {
         </p>
       </div>
 
-      {/* Market sentiment — India + World */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Market Overview
-          </h2>
-          {marketData?.as_of && (
-            <span className="text-[11px] text-muted-foreground">
-              as of {new Date(marketData.as_of).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST
-            </span>
-          )}
-        </div>
-
-        {marketError ? (
-          <div className="bg-card border border-border rounded-2xl p-6 text-sm text-muted-foreground">
-            Unable to load market sentiment. Please try again later.
-          </div>
-        ) : marketLoading ? (
-          <div className="grid sm:grid-cols-2 gap-4">
-            <GaugeSkeleton />
-            <GaugeSkeleton />
-          </div>
-        ) : marketData ? (
-          <>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <SentimentGauge title="India Market" readout={marketData.india} />
-                <HeadlineList headlines={marketData.india.top_headlines} />
-              </div>
-              <div className="space-y-3">
-                <SentimentGauge title="World Market" readout={marketData.world} />
-                <HeadlineList headlines={marketData.world.top_headlines} />
-              </div>
-            </div>
-          </>
-        ) : null}
-      </section>
-
-      {/* Stock drill-down */}
+      {/* Stock drill-down — primary, at the top */}
       <section className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Stock Sentiment
@@ -250,6 +212,44 @@ export default function SentimentPage() {
             ) : null}
           </div>
         )}
+      </section>
+
+      {/* Market sentiment — India + World (context, below the stock search) */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Market Overview
+          </h2>
+          {marketData?.as_of && (
+            <span className="text-[11px] text-muted-foreground">
+              as of {new Date(marketData.as_of).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST
+            </span>
+          )}
+        </div>
+
+        {marketError ? (
+          <div className="bg-card border border-border rounded-2xl p-6 text-sm text-muted-foreground">
+            Unable to load market sentiment. Please try again later.
+          </div>
+        ) : marketLoading ? (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <GaugeSkeleton />
+            <GaugeSkeleton />
+          </div>
+        ) : marketData ? (
+          <>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <SentimentGauge title="India Market" readout={marketData.india} />
+                <HeadlineList headlines={marketData.india.top_headlines} />
+              </div>
+              <div className="space-y-3">
+                <SentimentGauge title="World Market" readout={marketData.world} />
+                <HeadlineList headlines={marketData.world.top_headlines} />
+              </div>
+            </div>
+          </>
+        ) : null}
       </section>
 
       {/* Disclaimer */}

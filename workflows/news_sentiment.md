@@ -14,7 +14,7 @@ tools/sentiment_engine.py    →  per-headline VADER score
 tools/aggregate_sentiment.py →  build_readout() → score / label / confidence + top headlines
 ```
 
-1. `fetch_news.py` — pulls free RSS feeds (Moneycontrol, Economic Times, Business Standard, LiveMint for India; MarketWatch, CNBC, Reuters for world). If `NEWS_API_KEY` is set, also enriches via GNews free tier; absent → RSS-only.
+1. `fetch_news.py` — market scopes pull free RSS feeds (Moneycontrol, Economic Times, Business Standard, LiveMint for India; MarketWatch, CNBC, Reuters for world). Per-stock (`fetch_stock_news`) primarily uses a free **Google News RSS search** (`{symbol} share price NSE`, India-localized) plus the market RSS pool. If `NEWS_API_KEY` is set, also enriches via GNews free tier; absent → RSS/Google-News only.
 2. `sentiment_engine.py` — applies the VADER lexicon to each headline locally (no API call, no cost).
 3. `aggregate_sentiment.py` — `build_readout(headlines)` returns `{score, label, confidence, top_headlines}`.
 

@@ -36,7 +36,7 @@ A dedicated **Market Sentiment** page (`/dashboard/sentiment`) surfaces news-dri
 
 - **Three independent readouts** — stock, India market, world market — shown side by side. The stock's own news sentiment is its upside/downside call; India and world are context only, never merged with the stock score.
 - **Each readout:** a score (−100…+100), a label (Bullish / Neutral / Bearish), a confidence (0–100, based on article count and signal agreement), and the top headlines that drove it. Fewer than 3 usable articles → "Insufficient recent news" state; no fabricated signal is shown.
-- **100% free, no paid APIs required.** Backbone: free RSS feeds — Moneycontrol, Economic Times, Business Standard, LiveMint (India); MarketWatch, CNBC, Reuters (world). Optional free-tier GNews enrichment activates automatically when a `NEWS_API_KEY` env var is set; absent → RSS-only, no degraded behaviour.
+- **100% free, no paid APIs required.** Market scopes use free RSS feeds — Moneycontrol, Economic Times, Business Standard, LiveMint (India); MarketWatch, CNBC, Reuters (world). **Per-stock** sentiment uses a free **Google News RSS search** (`{symbol} share price NSE`, India-localized) for real per-ticker coverage, supplemented by the market RSS pool. Optional free-tier GNews enrichment activates when a `NEWS_API_KEY` env var is set; absent → RSS/Google-News only, no degraded behaviour.
 - **Scoring engine:** VADER lexicon — live, local, no API calls. (FinBERT nightly precompute + Supabase storage is Phase 2, not yet built.)
 - **Backend endpoints:** `GET /api/v1/sentiment/market?scope=india|world` and `GET /api/v1/sentiment/stock?ticker=…`
 - News-sentiment bias only — not investment advice.
