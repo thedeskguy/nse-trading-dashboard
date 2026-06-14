@@ -106,3 +106,11 @@ def test_build_readout_caps_top_headlines():
     items = [_item(f"Profit beats estimates number {i}") for i in range(20)]
     r = build_readout(items, top_n=5)
     assert len(r["top_headlines"]) == 5
+
+
+def test_build_readout_accepts_custom_scorer():
+    def fake_scorer(texts):
+        return [0.9] * len(texts), "finbert"
+    r = build_readout([_item("a"), _item("b"), _item("c")], scorer=fake_scorer)
+    assert r["scored_by"] == "finbert"
+    assert r["label"] == "Bullish"   # 0.9 mean -> +90

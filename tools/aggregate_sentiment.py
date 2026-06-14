@@ -67,7 +67,7 @@ def aggregate(per_headline: list[float]) -> dict:
             "article_count": count, "insufficient": insufficient}
 
 
-def build_readout(items: list[dict], top_n: int = 6) -> dict:
+def build_readout(items: list[dict], top_n: int = 6, scorer=score_headlines) -> dict:
     """Score a list of news items and assemble a readout for the API.
 
     `items` are dicts with keys: title, summary, source, url, published_at.
@@ -76,7 +76,7 @@ def build_readout(items: list[dict], top_n: int = 6) -> dict:
     """
     texts = [f"{it.get('title', '')}. {it.get('summary', '')}".strip()
              for it in items]
-    scores, scored_by = score_headlines(texts)
+    scores, scored_by = scorer(texts)
 
     agg = aggregate(scores)
 
