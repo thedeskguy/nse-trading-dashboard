@@ -74,3 +74,18 @@ def score_texts_finbert_api(texts: list[str]) -> list[float]:
         raise FinbertUnavailable(f"bad response: {e}")
 
     return out
+
+
+def score_headlines(texts: list[str]) -> tuple[list[float], str]:
+    """Return (per-headline scores in [-1,1], scorer name).
+
+    Prefers FinBERT via the HF API when HF_TOKEN is set and there is text to
+    score; otherwise, or on any FinBERT failure, uses VADER. The scorer name
+    ('finbert' | 'vader') is surfaced to the UI for transparency.
+    """
+    if texts and os.getenv("HF_TOKEN"):
+        try:
+            return score_texts_finbert_api(texts), "finbert"
+        except FinbertUnavailable:
+            pass
+    return score_texts(texts), "vader"

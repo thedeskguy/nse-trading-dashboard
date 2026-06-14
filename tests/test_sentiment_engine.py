@@ -73,3 +73,39 @@ def test_finbert_network_error_raises(monkeypatch):
     monkeypatch.setattr(se.requests, "post", boom)
     with pytest.raises(FinbertUnavailable):
         score_texts_finbert_api(["x"])
+
+
+from tools.sentiment_engine import score_headlines
+
+
+def test_selector_uses_vader_without_token(monkeypatch):
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    scores, source = score_headlines(["Company beats estimates, profit jumps"])
+    assert source == "vader"
+    assert len(scores) == 1
+
+
+def test_selector_uses_finbert_with_token(monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.setattr(se, "score_texts_finbert_api", lambda texts: [0.5] * len(texts))
+    scores, source = score_headlines(["x", "y"])
+    assert source == "finbert"
+    assert scores == [0.5, 0.5]
+
+
+def test_selector_falls_back_to_vader_on_finbert_failure(monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+
+    def boom(texts):
+        raise FinbertUnavailable("rate limited")
+    monkeypatch.setattr(se, "score_texts_finbert_api", boom)
+    scores, source = score_headlines(["Company crashes, shares plunge"])
+    assert source == "vader"
+    assert len(scores) == 1
+
+
+def test_selector_empty_texts(monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    scores, source = score_headlines([])
+    assert scores == []
+    assert source == "vader"   # nothing to score -> no API call
