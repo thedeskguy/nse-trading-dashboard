@@ -1,0 +1,25 @@
+name: Sentiment pipeline
+
+on:
+  schedule:
+    - cron: "30 11 * * 1-5"   # 17:00 IST — after the EOD price job
+  workflow_dispatch:
+
+jobs:
+  sentiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install CPU torch + deps
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r tools/requirements-sentiment.txt
+      - name: Run sentiment pipeline
+        run: python tools/sentiment_pipeline.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
