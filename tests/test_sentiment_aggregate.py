@@ -114,3 +114,17 @@ def test_build_readout_accepts_custom_scorer():
     r = build_readout([_item("a"), _item("b"), _item("c")], scorer=fake_scorer)
     assert r["scored_by"] == "finbert"
     assert r["label"] == "Bullish"   # 0.9 mean -> +90
+
+
+def test_build_readout_sorts_headlines_newest_first():
+    items = [
+        {"title": "old may news", "summary": "", "source": "S", "url": "a",
+         "published_at": "Wed, 28 May 2026 10:00:00 GMT"},
+        {"title": "new june news", "summary": "", "source": "S", "url": "b",
+         "published_at": "Thu, 11 Jun 2026 10:00:00 GMT"},
+        {"title": "mid june news", "summary": "", "source": "S", "url": "c",
+         "published_at": "Tue, 03 Jun 2026 10:00:00 GMT"},
+    ]
+    r = build_readout(items)
+    assert [h["title"] for h in r["top_headlines"]] == [
+        "new june news", "mid june news", "old may news"]

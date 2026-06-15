@@ -5,7 +5,32 @@ world). Nothing is blended across scopes — that is a product decision in the
 design spec, not an implementation detail to revisit here.
 """
 
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+
 from tools.sentiment_engine import score_headlines
+
+_MIN_DT = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _parse_published(s: str) -> datetime:
+    """Parse a headline's published_at into a sortable, tz-aware datetime.
+
+    Handles RFC-822 RSS dates ('Sat, 14 Jun 2026 ...') and ISO-8601; anything
+    unparseable sorts to the bottom (oldest).
+    """
+    if not s:
+        return _MIN_DT
+    try:
+        dt = parsedate_to_datetime(s)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        pass
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return _MIN_DT
 
 # Score thresholds on a -100..+100 scale.
 BULLISH_THRESHOLD = 20.0
@@ -80,8 +105,11 @@ def build_readout(items: list[dict], top_n: int = 6, scorer=score_headlines) -> 
 
     agg = aggregate(scores)
 
+    # Show the most RECENT headlines first (newest date at the top).
     ranked = sorted(
-        zip(items, scores), key=lambda pair: abs(pair[1]), reverse=True
+        zip(items, scores),
+        key=lambda pair: _parse_published(pair[0].get("published_at")),
+        reverse=True,
     )
     top_headlines = [
         {

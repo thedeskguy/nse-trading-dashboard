@@ -104,8 +104,11 @@ export function SentimentGauge({ title, readout }: Props) {
 
           {/* Confidence + article count */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-muted/40 border border-transparent px-3 py-2.5">
-              <p className="text-xs text-muted-foreground mb-0.5">Confidence</p>
+            <div
+              className="rounded-xl bg-muted/40 border border-transparent px-3 py-2.5"
+              title="How reliable this reading is — higher when there are many articles and they mostly agree in direction; lower with few articles or conflicting headlines."
+            >
+              <p className="text-xs text-muted-foreground mb-0.5 cursor-help">Confidence ⓘ</p>
               <div className="flex items-center gap-1.5">
                 <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                   <div
