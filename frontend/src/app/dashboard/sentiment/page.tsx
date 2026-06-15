@@ -209,7 +209,10 @@ export default function SentimentPage() {
                       title={`${stockData.ticker.replace(".NS", "")} — Stock`}
                       readout={stockData.sentiment}
                     />
-                    <HeadlineList headlines={stockData.sentiment.top_headlines} />
+                    <HeadlineList
+                      headlines={stockData.sentiment.top_headlines}
+                      heading={`News about ${stockData.ticker.replace(".NS", "")}`}
+                    />
                   </div>
                   {stockData.industry && (
                     <div className="space-y-3">
@@ -217,7 +220,10 @@ export default function SentimentPage() {
                         title={`${stockData.sector ?? "Industry"} — Sector`}
                         readout={stockData.industry}
                       />
-                      <HeadlineList headlines={stockData.industry.top_headlines} />
+                      <HeadlineList
+                        headlines={stockData.industry.top_headlines}
+                        heading={`${stockData.sector ?? "Industry"} sector news`}
+                      />
                     </div>
                   )}
                 </div>
@@ -254,11 +260,11 @@ export default function SentimentPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <SentimentGauge title="India Market" readout={marketData.india} />
-                <HeadlineList headlines={marketData.india.top_headlines} />
+                <HeadlineList headlines={marketData.india.top_headlines} heading="India market news" />
               </div>
               <div className="space-y-3">
                 <SentimentGauge title="World Market" readout={marketData.world} />
-                <HeadlineList headlines={marketData.world.top_headlines} />
+                <HeadlineList headlines={marketData.world.top_headlines} heading="World market news" />
               </div>
             </div>
           </>

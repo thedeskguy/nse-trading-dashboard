@@ -3,6 +3,7 @@ import type { Headline } from "@/lib/api/sentiment";
 
 interface Props {
   headlines: Headline[];
+  heading?: string;
 }
 
 function sentimentChip(score: number) {
@@ -26,16 +27,17 @@ function formatDate(iso: string): string {
   }
 }
 
-export function HeadlineList({ headlines }: Props) {
-  if (headlines.length === 0) {
-    return (
-      <p className="text-xs text-muted-foreground px-1 py-2">No headlines available.</p>
-    );
-  }
-
+export function HeadlineList({ headlines, heading }: Props) {
   return (
     <div className="space-y-2">
-      {headlines.map((h, i) => {
+      {heading && (
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-1 pt-1">
+          {heading}
+        </p>
+      )}
+      {headlines.length === 0 ? (
+        <p className="text-xs text-muted-foreground px-1 py-2">No headlines available.</p>
+      ) : headlines.map((h, i) => {
         const chip = sentimentChip(h.sentiment);
         return (
           <div

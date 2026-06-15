@@ -1,6 +1,12 @@
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Minus, AlertCircle } from "lucide-react";
 import type { SentimentReadout } from "@/lib/api/sentiment";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Props {
   title: string;
@@ -81,7 +87,7 @@ export function SentimentGauge({ title, readout }: Props) {
               {readout.score > 0 ? "+" : ""}
               {Math.round(readout.score)}
             </p>
-            <p className="text-xs text-muted-foreground mb-1">/ 100</p>
+            <p className="text-xs text-muted-foreground mb-1">on −100…+100</p>
           </div>
 
           {/* Sentiment bar (-100 → 0 → +100) */}
@@ -104,11 +110,18 @@ export function SentimentGauge({ title, readout }: Props) {
 
           {/* Confidence + article count */}
           <div className="grid grid-cols-2 gap-3">
-            <div
-              className="rounded-xl bg-muted/40 border border-transparent px-3 py-2.5"
-              title="How reliable this reading is — higher when there are many articles and they mostly agree in direction; lower with few articles or conflicting headlines."
-            >
-              <p className="text-xs text-muted-foreground mb-0.5 cursor-help">Confidence ⓘ</p>
+            <div className="rounded-xl bg-muted/40 border border-transparent px-3 py-2.5">
+              <TooltipProvider delay={100}>
+                <Tooltip>
+                  <TooltipTrigger className="text-xs text-muted-foreground mb-0.5 inline-flex items-center gap-1 cursor-help w-fit bg-transparent border-0 p-0 font-normal">
+                    Confidence <span className="opacity-50">ⓘ</span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[230px] leading-relaxed">
+                    How reliable this reading is — higher when there are many articles and they
+                    mostly agree in direction; lower with few articles or conflicting headlines.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <div className="flex items-center gap-1.5">
                 <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                   <div
