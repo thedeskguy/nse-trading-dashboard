@@ -208,5 +208,31 @@ class MLStrategyTest(unittest.TestCase):
         self.assertTrue(all(s == "HOLD" for s in signals))
 
 
+class AtrEmaHelpersTest(unittest.TestCase):
+    """TDD tests for the v2 indicator helpers _atr and _ema."""
+
+    def _df(self, highs, lows, closes):
+        idx = pd.date_range("2025-01-01", periods=len(closes), freq="D")
+        return pd.DataFrame({"High": highs, "Low": lows, "Close": closes}, index=idx)
+
+    def test_atr_is_positive_and_aligned(self):
+        from tools.backtester import _atr
+        n = 30
+        closes = list(np.linspace(100, 130, n))
+        highs = [c + 2 for c in closes]
+        lows = [c - 2 for c in closes]
+        atr = _atr(self._df(highs, lows, closes), period=14)
+        self.assertEqual(len(atr), n)
+        self.assertGreater(atr[20], 0)
+        self.assertTrue(np.isfinite(atr[20]))
+
+    def test_ema_tracks_level(self):
+        from tools.backtester import _ema
+        closes = np.array([10.0] * 50)
+        ema = _ema(closes, 200)
+        self.assertEqual(len(ema), 50)
+        self.assertAlmostEqual(ema[-1], 10.0, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()

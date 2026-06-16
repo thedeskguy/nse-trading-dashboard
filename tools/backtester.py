@@ -19,6 +19,34 @@ WARMUP = 50         # bars before indicator signals are reliable (EMA-200 etc.)
 ML_WARMUP = 120     # bars before the ML model has >= 60 clean training rows
 RETRAIN_EVERY = 21  # ~1 trading month between RandomForest retrains
 
+# ── v2 risk-management parameters ────────────────────────────────────────────
+TREND_EMA = 200       # only enter long when close > EMA(200)
+ATR_PERIOD = 14
+SL_ATR_MULT = 2.0     # initial stop = entry − 2.0·ATR
+RR_RATIO = 3.0        # target = entry + RR_RATIO·risk  → 1:3 minimum reward:risk
+TRAIL_ATR_MULT = 2.5  # trailing stop = highest-close-since-entry − 2.5·ATR
+RISK_PCT = 0.01       # risk 1% of equity to the stop per trade
+
+
+def _atr(df: pd.DataFrame, period: int = ATR_PERIOD) -> np.ndarray:
+    """Average True Range as a numpy array aligned to df (rolling SMA of TR)."""
+    high = df["High"].astype(float).values
+    low = df["Low"].astype(float).values
+    close = df["Close"].astype(float).values
+    prev_close = np.concatenate([[close[0]], close[:-1]])
+    tr = np.maximum.reduce([
+        high - low,
+        np.abs(high - prev_close),
+        np.abs(low - prev_close),
+    ])
+    return pd.Series(tr).rolling(period, min_periods=1).mean().values
+
+
+def _ema(values: np.ndarray, period: int) -> np.ndarray:
+    """Exponential moving average aligned to `values`."""
+    return pd.Series(values, dtype=float).ewm(span=period, adjust=False).mean().values
+
+
 STRATEGY_DESCRIPTIONS = {
     "indicator": (
         "Trades the composite technical indicator signal (RSI, MACD, EMA trend, "
