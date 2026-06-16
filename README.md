@@ -226,15 +226,63 @@ Target: next-day direction (up/down). No paid APIs — uses `scikit-learn` only.
 ## Backtesting
 
 `/api/v1/analysis/backtest?ticker=…&period=6mo|1y|2y&strategy=indicator|ml` runs a
-walk-forward, long-only backtest on daily OHLCV (close-price fills, no look-ahead):
+walk-forward, long-only backtest on daily OHLCV (close-price fills, no look-ahead).
+
+### Strategies
 
 - **indicator** (default) — trades the composite technical signal (RSI, MACD, EMA trend,
   Bollinger, S/R, OBV); BUY > 60 to enter, SELL < 40 to exit.
 - **ml** — trades a RandomForest next-day direction model retrained every 21 bars
   walk-forward; enters at P(up) ≥ 55%, exits at P(up) ≤ 45%. Needs ≥ ~141 daily bars.
 
-The response includes a buy-&-hold benchmark series and stats: total return, win rate,
-avg gain/loss, max drawdown, Sharpe, profit factor, exposure %, avg holding days.
+> **Planned (Phase B):** selectable strategy presets — trend-following, mean-reversion,
+> and breakout — are not yet implemented.
+
+### v2 Engine Behaviour
+
+**Entry filter — uptrend gate:** a long position is only opened when the closing price
+is above the 200-period EMA. Signals below EMA-200 are skipped entirely.
+
+**Exit — first of four rules wins:**
+
+| Rule | Trigger | Tag |
+|---|---|---|
+| Stop-loss | Price falls 2× ATR below entry | `stop` |
+| Take-profit | Price rises 3× the initial risk (1:3 ATR target) | `target` |
+| Trailing stop | Price retraces 2.5× ATR from the highest close since entry | `trail` |
+| Signal exit | Strategy emits a SELL signal | `signal` |
+
+Every closed trade record includes an `exit_reason` field set to one of the four tags above.
+
+**Position sizing — fixed-fractional (1% risk per trade):** rather than going all-in,
+each trade allocates only enough capital so that a 2×ATR adverse move equals 1% of
+current equity. Allocation scales inversely with stop distance, so wider stops
+automatically result in smaller position sizes.
+
+**Open position reporting:** if a position is still open at the last bar it is **not**
+force-closed. Instead it is returned as a separate `open_position` object containing
+entry price, current price, unrealised P&L, days held, live stop level, and live
+take-profit target.
+
+### Metrics
+
+The response includes a buy-&-hold benchmark series and the following stats:
+
+| Metric | Description |
+|---|---|
+| Total return | Cumulative % gain over the period |
+| CAGR | Annualised compound growth rate |
+| Win rate | % of closed trades that were profitable |
+| Avg gain / avg loss | Mean profit and mean loss per trade |
+| Best / worst trade | Largest single winning and losing trade |
+| Max drawdown | Peak-to-trough decline |
+| Sharpe ratio | Risk-adjusted return (annualised, rf = 0) |
+| Sortino ratio | Downside-deviation-adjusted return |
+| Calmar ratio | CAGR ÷ max drawdown |
+| Profit factor | Gross profits ÷ gross losses |
+| Exposure % | Fraction of bars spent in a position |
+| Avg holding days | Mean trade duration in calendar days |
+| Max consecutive losses | Longest losing streak by trade count |
 
 ---
 
