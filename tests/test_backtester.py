@@ -314,3 +314,24 @@ def test_position_sizing_scales_with_stop_distance():
     tight = _simulate(_sim_dates(2), closes, _const_atr(2, 2.5), ema, ["BUY", "SELL"])
     wide = _simulate(_sim_dates(2), closes, _const_atr(2, 25.0), ema, ["BUY", "SELL"])
     assert tight["equity_curve"][-1]["equity"] > wide["equity_curve"][-1]["equity"]
+
+
+# ── Task 3: richer metrics in _compute_stats ─────────────────────────────────
+from tools.backtester import _compute_stats as _compute_stats_v2
+
+
+def test_richer_metrics_present_and_sane():
+    trades = [
+        {"date_entry": "2025-01-01", "date_exit": "2025-01-05", "pnl_pct": 5.0},
+        {"date_entry": "2025-01-06", "date_exit": "2025-01-08", "pnl_pct": -2.0},
+        {"date_entry": "2025-01-09", "date_exit": "2025-01-12", "pnl_pct": -1.0},
+    ]
+    curve = [{"date": f"2025-01-{d:02d}", "equity": e, "benchmark": 100.0}
+             for d, e in zip(range(1, 7), [100, 102, 105, 103, 104, 108])]
+    s = _compute_stats_v2(trades, curve, final_equity=108.0, bars_long=4,
+                          n_signal_bars=6, buy_hold_return_pct=8.0)
+    assert s["best_trade_pct"] == 5.0
+    assert s["worst_trade_pct"] == -2.0
+    assert s["max_consecutive_losses"] == 2
+    assert "cagr_pct" in s and "sortino_ratio" in s and "calmar_ratio" in s
+    assert s["cagr_pct"] > 0

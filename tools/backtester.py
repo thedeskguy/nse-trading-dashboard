@@ -273,6 +273,35 @@ def _compute_stats(
     else:
         avg_hold_days = 0.0
 
+    # ── v2 richer metrics ────────────────────────────────────────────────────
+    n = len(equity_curve)
+    cagr = 0.0
+    if n >= 2 and final_equity > 0:
+        cagr = round(((final_equity / 100.0) ** (252.0 / n) - 1.0) * 100, 2)
+
+    sortino = 0.0
+    if len(eq) >= 3 and not np.any(eq[:-1] == 0):
+        rets = np.diff(eq) / eq[:-1]
+        downside = rets[rets < 0]
+        dd_std = np.std(downside) if len(downside) else 0.0
+        if dd_std > 0:
+            sortino = round(float(np.mean(rets) / dd_std * np.sqrt(252)), 2)
+
+    max_dd_v2 = _max_drawdown(equity_curve)
+    calmar = round(cagr / abs(max_dd_v2), 2) if max_dd_v2 < 0 else None
+
+    pnls = [t["pnl_pct"] for t in trades]
+    best_trade = round(max(pnls), 2) if pnls else 0.0
+    worst_trade = round(min(pnls), 2) if pnls else 0.0
+
+    max_consec = run = 0
+    for t in trades:
+        if t["pnl_pct"] <= 0:
+            run += 1
+            max_consec = max(max_consec, run)
+        else:
+            run = 0
+
     return {
         "num_trades":         num_trades,
         "win_rate":           round(len(wins) / num_trades, 3) if num_trades else 0.0,
@@ -285,6 +314,12 @@ def _compute_stats(
         "exposure_pct":       round(100.0 * bars_long / n_signal_bars, 1) if n_signal_bars else 0.0,
         "avg_hold_days":      avg_hold_days,
         "buy_hold_return_pct": round(buy_hold_return_pct, 2),
+        "cagr_pct":               cagr,
+        "sortino_ratio":          sortino,
+        "calmar_ratio":           calmar,
+        "best_trade_pct":         best_trade,
+        "worst_trade_pct":        worst_trade,
+        "max_consecutive_losses": max_consec,
     }
 
 
