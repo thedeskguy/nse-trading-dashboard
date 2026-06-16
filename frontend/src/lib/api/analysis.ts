@@ -84,6 +84,19 @@ export interface BacktestTrade {
   entry_price: number;
   exit_price: number;
   pnl_pct: number;
+  exit_reason: "stop" | "target" | "trail" | "signal";
+  r_multiple: number;
+}
+
+export interface OpenPosition {
+  date_entry: string;
+  entry_price: number;
+  current_price: number;
+  unrealized_pnl_pct: number;
+  days_held: number;
+  stop: number;
+  target: number;
+  exit_reason: null;
 }
 
 export interface BacktestStats {
@@ -98,6 +111,12 @@ export interface BacktestStats {
   exposure_pct: number;
   avg_hold_days: number;
   buy_hold_return_pct: number;
+  cagr_pct: number;
+  sortino_ratio: number;
+  calmar_ratio: number | null;
+  best_trade_pct: number;
+  worst_trade_pct: number;
+  max_consecutive_losses: number;
 }
 
 export type BacktestStrategy = "indicator" | "ml";
@@ -110,6 +129,7 @@ export interface BacktestResponse {
   strategy: BacktestStrategy;
   strategy_description: string;
   error: string | null;
+  open_position: OpenPosition | null;
 }
 
 export function useBacktest(
