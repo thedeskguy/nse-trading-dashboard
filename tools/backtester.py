@@ -157,11 +157,13 @@ STRATEGY_DESCRIPTIONS = {
         "Trades the composite technical indicator signal (RSI, MACD, EMA trend, "
         "Bollinger Bands, support/resistance, OBV). Long-only: BUY to enter, "
         "SELL to exit, close-price fills."
+        " Entries require an uptrend (close > EMA-200); exits on a 2·ATR stop, 1:3 ATR take-profit, 2.5·ATR trailing stop, or the strategy's SELL signal; positions are risk-sized to 1% of equity."
     ),
     "ml": (
         "Trades a RandomForest next-day direction model retrained every "
         f"{RETRAIN_EVERY} bars walk-forward. Enters when P(up) ≥ 55%, exits "
         "when P(up) ≤ 45%. Long-only, close-price fills."
+        " Entries require an uptrend (close > EMA-200); exits on a 2·ATR stop, 1:3 ATR take-profit, 2.5·ATR trailing stop, or the strategy's SELL signal; positions are risk-sized to 1% of equity."
     ),
 }
 
@@ -169,6 +171,7 @@ STRATEGY_DESCRIPTIONS = {
 def _empty_result(strategy: str, error: str | None = None) -> dict:
     return {
         "trades": [],
+        "open_position": None,
         "equity_curve": [],
         "stats": _compute_stats([], [], 100.0, 0, 0, 0.0),
         "strategy": strategy,
@@ -357,68 +360,25 @@ def run_backtest(df: pd.DataFrame, strategy: str = "indicator") -> dict:
 
     signals = _ml_signals(df, warmup) if strategy == "ml" else _indicator_signals(df, warmup)
 
-    # ── Trade simulation + daily MTM equity + benchmark (single pass) ────────
+    atr_full = _atr(df, ATR_PERIOD)
+    ema_full = _ema(df["Close"].astype(float).values, TREND_EMA)
+
+    # Align arrays to the signal window (bars warmup … end).
+    sim = _simulate(
+        dates[warmup:], closes[warmup:], atr_full[warmup:], ema_full[warmup:], signals
+    )
+
     base_close = float(closes[warmup])
-    trades: list[dict] = []
-    equity_curve: list[dict] = []
-    committed_equity = 100.0
-    state = "flat"
-    entry_price = 0.0
-    entry_date = ""
-    bars_long = 0
-
-    for i, sig in enumerate(signals):
-        row_idx = warmup + i
-        close = float(closes[row_idx])
-        date = dates[row_idx]
-
-        if state == "flat" and sig == "BUY":
-            state = "long"
-            entry_price = close
-            entry_date = date
-        elif state == "long" and sig == "SELL":
-            committed_equity *= close / entry_price
-            trades.append({
-                "date_entry":  entry_date,
-                "date_exit":   date,
-                "entry_price": round(entry_price, 2),
-                "exit_price":  round(close, 2),
-                "pnl_pct":     round((close - entry_price) / entry_price * 100, 2),
-            })
-            state = "flat"
-
-        if state == "long":
-            bars_long += 1
-            daily_eq = committed_equity * (close / entry_price)
-        else:
-            daily_eq = committed_equity
-
-        equity_curve.append({
-            "date": date,
-            "equity": round(daily_eq, 2),
-            "benchmark": round(100.0 * close / base_close, 2),
-        })
-
-    # Force-close any open position at the final bar
-    if state == "long":
-        close = float(closes[-1])
-        committed_equity *= close / entry_price
-        trades.append({
-            "date_entry":  entry_date,
-            "date_exit":   dates[-1],
-            "entry_price": round(entry_price, 2),
-            "exit_price":  round(close, 2),
-            "pnl_pct":     round((close - entry_price) / entry_price * 100, 2),
-        })
-
+    final_equity = sim["equity_curve"][-1]["equity"] if sim["equity_curve"] else 100.0
     buy_hold_return_pct = 100.0 * (float(closes[-1]) / base_close - 1.0)
 
     return {
-        "trades": trades,
-        "equity_curve": equity_curve,
+        "trades": sim["trades"],
+        "open_position": sim["open_position"],
+        "equity_curve": sim["equity_curve"],
         "stats": _compute_stats(
-            trades, equity_curve, committed_equity,
-            bars_long, len(signals), buy_hold_return_pct,
+            sim["trades"], sim["equity_curve"], final_equity,
+            sim["bars_long"], len(signals), buy_hold_return_pct,
         ),
         "strategy": strategy,
         "strategy_description": STRATEGY_DESCRIPTIONS[strategy],

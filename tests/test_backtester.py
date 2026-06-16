@@ -335,3 +335,28 @@ def test_richer_metrics_present_and_sane():
     assert s["max_consecutive_losses"] == 2
     assert "cagr_pct" in s and "sortino_ratio" in s and "calmar_ratio" in s
     assert s["cagr_pct"] > 0
+
+
+# ── Task 4: rewire run_backtest to v2 engine ─────────────────────────────────
+from tools.backtester import run_backtest as _run_bt_v2
+
+
+def _trending_df_v2(n=120):
+    idx = pd.date_range("2025-01-01", periods=n, freq="D")
+    closes = np.linspace(100, 200, n)
+    return pd.DataFrame({
+        "Open": closes, "High": closes + 1, "Low": closes - 1,
+        "Close": closes, "Volume": [1_000_000] * n,
+    }, index=idx)
+
+
+def test_run_backtest_v2_contract():
+    res = _run_bt_v2(_trending_df_v2(), strategy="indicator")
+    assert res["error"] is None
+    assert "open_position" in res
+    for k in ("cagr_pct", "sortino_ratio", "calmar_ratio",
+              "best_trade_pct", "worst_trade_pct", "max_consecutive_losses"):
+        assert k in res["stats"]
+    for t in res["trades"]:
+        assert t["exit_reason"] in ("stop", "target", "trail", "signal")
+        assert "r_multiple" in t
