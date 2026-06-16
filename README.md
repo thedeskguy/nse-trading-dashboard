@@ -243,16 +243,15 @@ walk-forward, long-only backtest on daily OHLCV (close-price fills, no look-ahea
 **Entry filter — uptrend gate:** a long position is only opened when the closing price
 is above the 200-period EMA. Signals below EMA-200 are skipped entirely.
 
-**Exit — first of four rules wins:**
+**Exit — first of three rules wins:**
 
 | Rule | Trigger | Tag |
 |---|---|---|
-| Stop-loss | Price falls 2× ATR below entry | `stop` |
+| Stop-loss | Price falls 2× ATR below entry, **capped at 10% below entry** (the tighter of the two) | `stop` |
 | Take-profit | Price rises 3× the initial risk (1:3 ATR target) | `target` |
-| Trailing stop | Price retraces 2.5× ATR from the highest close since entry | `trail` |
 | Signal exit | Strategy emits a SELL signal | `signal` |
 
-Every closed trade record includes an `exit_reason` field set to one of the four tags above.
+The stop is **fixed** (no trailing). Every closed trade record includes an `exit_reason` field set to one of the three tags above.
 
 **Position sizing — fixed-fractional (1% risk per trade):** rather than going all-in,
 each trade allocates only enough capital so that a 2×ATR adverse move equals 1% of

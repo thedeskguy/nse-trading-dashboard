@@ -22,9 +22,9 @@ RETRAIN_EVERY = 21  # ~1 trading month between RandomForest retrains
 # ── v2 risk-management parameters ────────────────────────────────────────────
 TREND_EMA = 200       # only enter long when close > EMA(200)
 ATR_PERIOD = 14
-SL_ATR_MULT = 2.0     # initial stop = entry − 2.0·ATR
+SL_ATR_MULT = 2.0     # stop = entry − 2.0·ATR …
+MAX_STOP_PCT = 0.10   # …but never risk more than 10% below entry (stop = the tighter of the two)
 RR_RATIO = 3.0        # target = entry + RR_RATIO·risk  → 1:3 minimum reward:risk
-TRAIL_ATR_MULT = 2.5  # trailing stop = highest-close-since-entry − 2.5·ATR
 RISK_PCT = 0.01       # risk 1% of equity to the stop per trade
 
 
@@ -65,7 +65,7 @@ def _simulate(dates, closes, atr, ema_trend, signals) -> dict:
     state = "flat"
     entry_date = ""
     entry_price = 0.0
-    stop = target = init_risk = atr_entry = entry_high = 0.0
+    stop = target = init_risk = atr_entry = 0.0
     bars_long = 0
 
     for i, sig in enumerate(signals):
@@ -74,12 +74,9 @@ def _simulate(dates, closes, atr, ema_trend, signals) -> dict:
 
         # ── exit checks (while long) ─────────────────────────────────────────
         if state == "long":
-            entry_high = max(entry_high, close)
-            trail = entry_high - TRAIL_ATR_MULT * atr_entry
-            eff_stop = max(stop, trail)
             exit_reason = None
-            if close <= eff_stop:
-                exit_reason = "trail" if eff_stop > stop else "stop"
+            if close <= stop:                 # fixed stop-loss (no trailing)
+                exit_reason = "stop"
             elif close >= target:
                 exit_reason = "target"
             elif sig == "SELL":
@@ -104,7 +101,8 @@ def _simulate(dates, closes, atr, ema_trend, signals) -> dict:
         if state == "flat" and sig == "BUY" and close > float(ema_trend[i]):
             atr_entry = float(atr[i])
             if atr_entry > 0:
-                stop = close - SL_ATR_MULT * atr_entry
+                # ATR-based stop, but never wider than MAX_STOP_PCT of entry.
+                stop = close - min(SL_ATR_MULT * atr_entry, MAX_STOP_PCT * close)
                 init_risk = close - stop
                 target = close + RR_RATIO * init_risk
                 stop_dist_pct = init_risk / close
@@ -114,7 +112,6 @@ def _simulate(dates, closes, atr, ema_trend, signals) -> dict:
                 cash = equity - invested
                 entry_price = close
                 entry_date = date
-                entry_high = close
                 state = "long"
 
         # ── mark to market ───────────────────────────────────────────────────
@@ -157,13 +154,13 @@ STRATEGY_DESCRIPTIONS = {
         "Trades the composite technical indicator signal (RSI, MACD, EMA trend, "
         "Bollinger Bands, support/resistance, OBV). Long-only: BUY to enter, "
         "SELL to exit, close-price fills."
-        " Entries require an uptrend (close > EMA-200); exits on a 2·ATR stop, 1:3 ATR take-profit, 2.5·ATR trailing stop, or the strategy's SELL signal; positions are risk-sized to 1% of equity."
+        " Entries require an uptrend (close > EMA-200); exits on a 2·ATR stop (capped at 10% below entry), a 1:3 ATR take-profit, or the strategy's SELL signal; positions are risk-sized to 1% of equity."
     ),
     "ml": (
         "Trades a RandomForest next-day direction model retrained every "
         f"{RETRAIN_EVERY} bars walk-forward. Enters when P(up) ≥ 55%, exits "
         "when P(up) ≤ 45%. Long-only, close-price fills."
-        " Entries require an uptrend (close > EMA-200); exits on a 2·ATR stop, 1:3 ATR take-profit, 2.5·ATR trailing stop, or the strategy's SELL signal; positions are risk-sized to 1% of equity."
+        " Entries require an uptrend (close > EMA-200); exits on a 2·ATR stop (capped at 10% below entry), a 1:3 ATR take-profit, or the strategy's SELL signal; positions are risk-sized to 1% of equity."
     ),
 }
 

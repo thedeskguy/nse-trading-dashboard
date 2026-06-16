@@ -429,8 +429,8 @@ export function BacktestPanel({ ticker, enabled = true, strategy, onStrategyChan
               Entries are taken only when price is above the 200-day EMA (uptrend filter).
             </p>
             <p>
-              Risk management: 2×ATR stop-loss, 1:3 ATR take-profit target, 2.5×ATR trailing
-              stop, and SELL-signal exit. Position sizing uses 1%-risk per trade (ATR-based).
+              Risk management: 2×ATR stop-loss (capped at 10% below entry), 1:3 ATR take-profit
+              target, and SELL-signal exit — no trailing stop. Position sizing uses 1%-risk per trade.
             </p>
             <p>
               Not modelled: transaction costs, slippage, dividends, taxes. Past performance

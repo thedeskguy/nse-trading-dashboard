@@ -277,14 +277,22 @@ def test_take_profit_exit_hits_1to3():
     assert round(t["r_multiple"], 1) == 3.0
 
 
-def test_trailing_stop_exit_locks_gain():
-    closes = np.array([100.0, 150.0, 124.0])   # trail=150-2.5*10=125; 124<=125, >initial stop 80
+def test_no_trailing_stop_rides_pullback():
+    # No trailing stop: a pullback from the high must NOT exit while price stays
+    # above the fixed stop and below the target — the position stays open.
+    closes = np.array([100.0, 128.0, 100.0])   # atr 10 -> stop 90 (10% cap), target 130
     ema = np.array([90.0, 90.0, 90.0])
     out = _simulate(_sim_dates(3), closes, _const_atr(3), ema, ["BUY", "HOLD", "HOLD"])
-    assert len(out["trades"]) == 1
-    t = out["trades"][0]
-    assert t["exit_reason"] == "trail"
-    assert t["pnl_pct"] > 0
+    assert out["trades"] == []                 # the old trailing stop would have exited here
+    assert out["open_position"] is not None
+
+
+def test_stop_capped_at_10_percent():
+    # High ATR (2*ATR = 40% of price) -> stop is capped at 10% below entry (90), not 60.
+    closes = np.array([100.0, 95.0])
+    ema = np.array([90.0, 90.0])
+    out = _simulate(_sim_dates(2), closes, _const_atr(2, 20.0), ema, ["BUY", "HOLD"])
+    assert out["open_position"]["stop"] == 90.0
 
 
 def test_sell_signal_exit():
@@ -305,7 +313,8 @@ def test_open_position_reported_when_ending_long():
     assert op["entry_price"] == 100.0
     assert op["current_price"] == 108.0
     assert round(op["unrealized_pnl_pct"], 1) == 8.0
-    assert op["stop"] == 80.0 and op["target"] == 160.0
+    # stop capped at 10% (entry 100, 2*ATR=20 > 10% -> stop 90), target = 100 + 3*10 = 130
+    assert op["stop"] == 90.0 and op["target"] == 130.0
 
 
 def test_position_sizing_scales_with_stop_distance():
