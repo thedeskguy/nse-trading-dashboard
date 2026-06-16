@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { AlertCircle, Cpu, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useBacktest, type BacktestStrategy } from "@/lib/api/analysis";
+import { useBacktest, type BacktestStrategy, type OpenPosition } from "@/lib/api/analysis";
 import { MethodologyNote } from "@/components/analysis/MethodologyNote";
 
 const PERIODS = ["6mo", "1y", "2y"] as const;
@@ -25,6 +25,57 @@ const STRATEGIES: Array<{ value: BacktestStrategy; label: string; icon: typeof A
   { value: "indicator", label: "Indicator", icon: Activity },
   { value: "ml", label: "ML Model", icon: Cpu },
 ];
+
+function OpenPositionCard({ position }: { position: OpenPosition }) {
+  const pnlColor = position.unrealized_pnl_pct >= 0 ? "text-buy" : "text-sell";
+  const stopDistPct = ((position.stop - position.current_price) / position.current_price * 100).toFixed(1);
+  const targetDistPct = ((position.target - position.current_price) / position.current_price * 100).toFixed(1);
+  return (
+    <div className="bg-card border-2 border-primary/40 rounded-xl px-4 py-3 space-y-2">
+      <div className="text-[10px] text-primary uppercase tracking-wider font-semibold">
+        Open position
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Entry date</div>
+          <div className="text-sm font-mono font-semibold">{position.date_entry}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Entry ₹</div>
+          <div className="text-sm font-mono font-semibold">
+            ₹{position.entry_price.toLocaleString("en-IN")}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Current ₹</div>
+          <div className="text-sm font-mono font-semibold">
+            ₹{position.current_price.toLocaleString("en-IN")}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Unrealised P&amp;L</div>
+          <div className={`text-sm font-mono font-semibold ${pnlColor}`}>
+            {position.unrealized_pnl_pct >= 0 ? "+" : ""}{position.unrealized_pnl_pct.toFixed(2)}%
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Days held</div>
+          <div className="text-sm font-mono font-semibold">{position.days_held}d</div>
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Stop / Target</div>
+          <div className="text-sm font-mono font-semibold">
+            <span className="text-sell">₹{position.stop.toLocaleString("en-IN")}</span>
+            <span className="text-[10px] text-muted-foreground ml-1">({stopDistPct}%)</span>
+            {" / "}
+            <span className="text-buy">₹{position.target.toLocaleString("en-IN")}</span>
+            <span className="text-[10px] text-muted-foreground ml-1">(+{targetDistPct}%)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function EquityTooltip({
   active,
@@ -131,6 +182,24 @@ export function BacktestPanel({ ticker, enabled = true, strategy, onStrategyChan
           sub: "Calendar days per trade",
           color: "text-foreground",
         },
+        {
+          label: "CAGR",
+          value: fmtPct(data.stats.cagr_pct),
+          sub: "Annualised return",
+          color: data.stats.cagr_pct >= 0 ? "text-buy" : "text-sell",
+        },
+        {
+          label: "Sortino",
+          value: data.stats.sortino_ratio.toFixed(2),
+          sub: "Downside-adjusted return",
+          color: "text-foreground",
+        },
+        {
+          label: "Calmar",
+          value: data.stats.calmar_ratio != null ? data.stats.calmar_ratio.toFixed(2) : "—",
+          sub: "CAGR ÷ max drawdown",
+          color: "text-foreground",
+        },
       ]
     : [];
 
@@ -211,6 +280,11 @@ export function BacktestPanel({ ticker, enabled = true, strategy, onStrategyChan
               </div>
             ))}
           </div>
+
+          {/* Open position card */}
+          {data.open_position && (
+            <OpenPositionCard position={data.open_position} />
+          )}
 
           {/* Equity curve vs benchmark with trade markers */}
           {data.equity_curve.length > 1 ? (
@@ -308,6 +382,7 @@ export function BacktestPanel({ ticker, enabled = true, strategy, onStrategyChan
                     <th className="text-right px-3 py-2 font-medium">Entry ₹</th>
                     <th className="text-right px-3 py-2 font-medium">Exit ₹</th>
                     <th className="text-right px-3 py-2 font-medium">P&amp;L %</th>
+                    <th className="text-left px-3 py-2 font-medium">Exit</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -329,6 +404,17 @@ export function BacktestPanel({ ticker, enabled = true, strategy, onStrategyChan
                         {t.pnl_pct >= 0 ? "+" : ""}
                         {t.pnl_pct.toFixed(2)}%
                       </td>
+                      <td
+                        className={`px-3 py-1.5 font-mono text-xs capitalize ${
+                          t.exit_reason === "target"
+                            ? "text-buy"
+                            : t.exit_reason === "stop" || t.exit_reason === "trail"
+                            ? "text-sell"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {t.exit_reason.charAt(0).toUpperCase() + t.exit_reason.slice(1)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -340,6 +426,11 @@ export function BacktestPanel({ ticker, enabled = true, strategy, onStrategyChan
             <p>
               Walk-forward simulation: each day the strategy sees only data up to that day
               (no look-ahead). Long-only, one position at a time, filled at the daily close.
+              Entries are taken only when price is above the 200-day EMA (uptrend filter).
+            </p>
+            <p>
+              Risk management: 2×ATR stop-loss, 1:3 ATR take-profit target, 2.5×ATR trailing
+              stop, and SELL-signal exit. Position sizing uses 1%-risk per trade (ATR-based).
             </p>
             <p>
               Not modelled: transaction costs, slippage, dividends, taxes. Past performance
