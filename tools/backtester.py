@@ -47,6 +47,111 @@ def _ema(values: np.ndarray, period: int) -> np.ndarray:
     return pd.Series(values, dtype=float).ewm(span=period, adjust=False).mean().values
 
 
+def _simulate(dates, closes, atr, ema_trend, signals) -> dict:
+    """Pure trade state machine over aligned per-bar arrays (all same length).
+
+    Returns {"trades", "equity_curve", "open_position", "bars_long"}.
+    Long-only, one position at a time, close-price fills. Equity starts at 100.
+    """
+    closes = np.asarray(closes, dtype=float)
+    atr = np.asarray(atr, dtype=float)
+    ema_trend = np.asarray(ema_trend, dtype=float)
+    base_close = float(closes[0])
+
+    trades: list[dict] = []
+    equity_curve: list[dict] = []
+    cash = 100.0
+    invested = 0.0          # entry-time capital committed to the open position
+    state = "flat"
+    entry_date = ""
+    entry_price = 0.0
+    stop = target = init_risk = atr_entry = entry_high = 0.0
+    bars_long = 0
+
+    for i, sig in enumerate(signals):
+        close = float(closes[i])
+        date = dates[i]
+
+        # ── exit checks (while long) ─────────────────────────────────────────
+        if state == "long":
+            entry_high = max(entry_high, close)
+            trail = entry_high - TRAIL_ATR_MULT * atr_entry
+            eff_stop = max(stop, trail)
+            exit_reason = None
+            if close <= eff_stop:
+                exit_reason = "trail" if eff_stop > stop else "stop"
+            elif close >= target:
+                exit_reason = "target"
+            elif sig == "SELL":
+                exit_reason = "signal"
+
+            if exit_reason:
+                cash += invested * close / entry_price          # realise
+                trades.append({
+                    "date_entry":  entry_date,
+                    "date_exit":   date,
+                    "entry_price": round(entry_price, 2),
+                    "exit_price":  round(close, 2),
+                    "pnl_pct":     round((close - entry_price) / entry_price * 100, 2),
+                    "exit_reason": exit_reason,
+                    "r_multiple":  round((close - entry_price) / init_risk, 2)
+                                   if init_risk else 0.0,
+                })
+                invested = 0.0
+                state = "flat"
+
+        # ── entry (flat + BUY + uptrend) ─────────────────────────────────────
+        if state == "flat" and sig == "BUY" and close > float(ema_trend[i]):
+            atr_entry = float(atr[i])
+            if atr_entry > 0:
+                stop = close - SL_ATR_MULT * atr_entry
+                init_risk = close - stop
+                target = close + RR_RATIO * init_risk
+                stop_dist_pct = init_risk / close
+                alloc = min(1.0, RISK_PCT / stop_dist_pct) if stop_dist_pct > 0 else 0.0
+                equity = cash                                   # flat -> equity == cash
+                invested = alloc * equity
+                cash = equity - invested
+                entry_price = close
+                entry_date = date
+                entry_high = close
+                state = "long"
+
+        # ── mark to market ───────────────────────────────────────────────────
+        eq = cash + (invested * close / entry_price if state == "long" else 0.0)
+        equity_curve.append({
+            "date": date,
+            "equity": round(eq, 2),
+            "benchmark": round(100.0 * close / base_close, 2),
+        })
+        if state == "long":
+            bars_long += 1
+
+    # ── open position (not force-closed) ─────────────────────────────────────
+    open_position = None
+    if state == "long":
+        last = float(closes[-1])
+        open_position = {
+            "date_entry":         entry_date,
+            "entry_price":        round(entry_price, 2),
+            "current_price":      round(last, 2),
+            "unrealized_pnl_pct": round((last - entry_price) / entry_price * 100, 2),
+            "days_held":          (
+                pd.Timestamp(dates[-1]) - pd.Timestamp(entry_date)
+            ).days,
+            "stop":               round(stop, 2),
+            "target":             round(target, 2),
+            "exit_reason":        None,
+        }
+
+    return {
+        "trades": trades,
+        "equity_curve": equity_curve,
+        "open_position": open_position,
+        "bars_long": bars_long,
+    }
+
+
 STRATEGY_DESCRIPTIONS = {
     "indicator": (
         "Trades the composite technical indicator signal (RSI, MACD, EMA trend, "

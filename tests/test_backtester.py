@@ -236,3 +236,81 @@ class AtrEmaHelpersTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── Task 2: _simulate v2 state machine ───────────────────────────────────────
+from tools.backtester import _simulate
+
+
+def _const_atr(n, val=10.0):
+    return np.array([val] * n, dtype=float)
+
+
+def _sim_dates(n):
+    return pd.date_range("2025-01-01", periods=n, freq="D").strftime("%Y-%m-%d").tolist()
+
+
+def test_trend_filter_blocks_counter_trend_buy():
+    closes = np.array([100.0, 100.0, 100.0])
+    ema = np.array([110.0, 110.0, 110.0])      # price below trend
+    out = _simulate(_sim_dates(3), closes, _const_atr(3), ema, ["HOLD", "BUY", "HOLD"])
+    assert out["trades"] == []
+    assert out["open_position"] is None
+
+
+def test_stop_loss_exit():
+    closes = np.array([100.0, 95.0, 79.0])     # stop = 100-2*10 = 80; 79 < 80
+    ema = np.array([90.0, 90.0, 90.0])
+    out = _simulate(_sim_dates(3), closes, _const_atr(3), ema, ["BUY", "HOLD", "HOLD"])
+    assert len(out["trades"]) == 1
+    assert out["trades"][0]["exit_reason"] == "stop"
+    assert out["open_position"] is None
+
+
+def test_take_profit_exit_hits_1to3():
+    closes = np.array([100.0, 130.0, 160.0])   # target = 100 + 3*20 = 160
+    ema = np.array([90.0, 90.0, 90.0])
+    out = _simulate(_sim_dates(3), closes, _const_atr(3), ema, ["BUY", "HOLD", "HOLD"])
+    assert len(out["trades"]) == 1
+    t = out["trades"][0]
+    assert t["exit_reason"] == "target"
+    assert round(t["r_multiple"], 1) == 3.0
+
+
+def test_trailing_stop_exit_locks_gain():
+    closes = np.array([100.0, 150.0, 124.0])   # trail=150-2.5*10=125; 124<=125, >initial stop 80
+    ema = np.array([90.0, 90.0, 90.0])
+    out = _simulate(_sim_dates(3), closes, _const_atr(3), ema, ["BUY", "HOLD", "HOLD"])
+    assert len(out["trades"]) == 1
+    t = out["trades"][0]
+    assert t["exit_reason"] == "trail"
+    assert t["pnl_pct"] > 0
+
+
+def test_sell_signal_exit():
+    closes = np.array([100.0, 105.0, 108.0])   # between stop and target
+    ema = np.array([90.0, 90.0, 90.0])
+    out = _simulate(_sim_dates(3), closes, _const_atr(3), ema, ["BUY", "HOLD", "SELL"])
+    assert len(out["trades"]) == 1
+    assert out["trades"][0]["exit_reason"] == "signal"
+
+
+def test_open_position_reported_when_ending_long():
+    closes = np.array([100.0, 105.0, 108.0])
+    ema = np.array([90.0, 90.0, 90.0])
+    out = _simulate(_sim_dates(3), closes, _const_atr(3), ema, ["BUY", "HOLD", "HOLD"])
+    assert out["trades"] == []
+    op = out["open_position"]
+    assert op is not None
+    assert op["entry_price"] == 100.0
+    assert op["current_price"] == 108.0
+    assert round(op["unrealized_pnl_pct"], 1) == 8.0
+    assert op["stop"] == 80.0 and op["target"] == 160.0
+
+
+def test_position_sizing_scales_with_stop_distance():
+    closes = np.array([100.0, 110.0])
+    ema = np.array([90.0, 90.0])
+    tight = _simulate(_sim_dates(2), closes, _const_atr(2, 2.5), ema, ["BUY", "SELL"])
+    wide = _simulate(_sim_dates(2), closes, _const_atr(2, 25.0), ema, ["BUY", "SELL"])
+    assert tight["equity_curve"][-1]["equity"] > wide["equity_curve"][-1]["equity"]
