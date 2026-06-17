@@ -369,3 +369,16 @@ def test_run_backtest_v2_contract():
     for t in res["trades"]:
         assert t["exit_reason"] in ("stop", "target", "trail", "signal")
         assert "r_multiple" in t
+
+
+# ── Task 1: _trend_signals (EMA-50/200) ──────────────────────────────────────
+from tools.backtester import _trend_signals
+
+
+def test_trend_signals_buy_above_sell_below():
+    df = pd.DataFrame({
+        "EMA_50":  [1.0, 2.0, 3.0, 4.0, 5.0],
+        "EMA_200": [3.0, 3.0, 3.0, 3.0, 3.0],
+    })
+    # fast>slow only at i3 (4>3) and i4 (5>3); i2 is 3>3 -> False -> SELL
+    assert _trend_signals(df, warmup=0) == ["SELL", "SELL", "SELL", "BUY", "BUY"]

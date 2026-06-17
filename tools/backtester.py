@@ -239,6 +239,25 @@ def _ml_signals(df: pd.DataFrame, warmup: int) -> list[str]:
     return signals
 
 
+# ── strategy preset parameters ───────────────────────────────────────────────
+TREND_FAST_EMA = 50
+TREND_SLOW_EMA = 200
+TREND_WARMUP = 200          # EMA-200 needs seasoning before the cross is meaningful
+
+
+def _trend_signals(df: pd.DataFrame, warmup: int) -> list[str]:
+    """Trend-following: BUY while EMA-50 > EMA-200, else SELL (enter golden cross)."""
+    fast = df.get(f"EMA_{TREND_FAST_EMA}")
+    slow = df.get(f"EMA_{TREND_SLOW_EMA}")
+    signals: list[str] = []
+    for i in range(warmup, len(df)):
+        try:
+            signals.append("BUY" if float(fast.iloc[i]) > float(slow.iloc[i]) else "SELL")
+        except Exception:
+            signals.append("HOLD")
+    return signals
+
+
 def _compute_stats(
     trades: list[dict],
     equity_curve: list[dict],
