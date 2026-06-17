@@ -258,6 +258,28 @@ def _trend_signals(df: pd.DataFrame, warmup: int) -> list[str]:
     return signals
 
 
+MEANREV_RSI_BUY = 30        # RSI below this = oversold -> BUY
+MEANREV_RSI_SELL = 55       # RSI above this = reverted -> SELL
+
+
+def _meanrev_signals(df: pd.DataFrame, warmup: int) -> list[str]:
+    """Mean-reversion: BUY when RSI-14 < 30 (oversold), SELL when RSI-14 > 55."""
+    rsi = df.get("RSI_14")
+    signals: list[str] = []
+    for i in range(warmup, len(df)):
+        try:
+            r = float(rsi.iloc[i])
+            if r < MEANREV_RSI_BUY:
+                signals.append("BUY")
+            elif r > MEANREV_RSI_SELL:
+                signals.append("SELL")
+            else:
+                signals.append("HOLD")
+        except Exception:
+            signals.append("HOLD")
+    return signals
+
+
 def _compute_stats(
     trades: list[dict],
     equity_curve: list[dict],

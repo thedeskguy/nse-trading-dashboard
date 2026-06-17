@@ -382,3 +382,13 @@ def test_trend_signals_buy_above_sell_below():
     })
     # fast>slow only at i3 (4>3) and i4 (5>3); i2 is 3>3 -> False -> SELL
     assert _trend_signals(df, warmup=0) == ["SELL", "SELL", "SELL", "BUY", "BUY"]
+
+
+# ── Task 2: _meanrev_signals (RSI-14) ─────────────────────────────────────────
+from tools.backtester import _meanrev_signals
+
+
+def test_meanrev_signals_oversold_buy_recovered_sell():
+    df = pd.DataFrame({"RSI_14": [25.0, 40.0, 60.0, 28.0, 70.0]})
+    # <30 -> BUY, 30..55 -> HOLD, >55 -> SELL
+    assert _meanrev_signals(df, warmup=0) == ["BUY", "HOLD", "SELL", "BUY", "SELL"]
