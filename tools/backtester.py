@@ -162,6 +162,23 @@ STRATEGY_DESCRIPTIONS = {
         "when P(up) ≤ 45%. Long-only, close-price fills."
         " Entries require an uptrend (close > EMA-200); exits on a 2·ATR stop (capped at 10% below entry), a 1:3 ATR take-profit, or the strategy's SELL signal; positions are risk-sized to 1% of equity."
     ),
+    "trend": (
+        "Trend-following: long while EMA-50 is above EMA-200 (enters at the golden "
+        "cross, exits at the death cross). Entries require an uptrend (close > EMA-200); "
+        "exits on a 2·ATR stop (capped at 10% below entry), a 1:3 ATR take-profit, or the "
+        "strategy's SELL signal; positions are risk-sized to 1% of equity."
+    ),
+    "meanrev": (
+        "Mean-reversion: BUY when RSI-14 < 30 (oversold), SELL when RSI-14 > 55. Combined "
+        "with the uptrend filter this buys dips in uptrends. Exits on a 2·ATR stop (capped "
+        "at 10% below entry), a 1:3 ATR take-profit, or the SELL signal; risk-sized to 1%."
+    ),
+    "breakout": (
+        "Breakout: BUY when price closes above its prior 20-day high, SELL when it closes "
+        "below its prior 10-day low. Entries require an uptrend (close > EMA-200); exits on "
+        "a 2·ATR stop (capped at 10% below entry), a 1:3 ATR take-profit, or the SELL "
+        "signal; positions are risk-sized to 1% of equity."
+    ),
 }
 
 
@@ -235,6 +252,74 @@ def _ml_signals(df: pd.DataFrame, warmup: int) -> list[str]:
         elif p_up <= 0.45:
             signals.append("SELL")
         else:
+            signals.append("HOLD")
+    return signals
+
+
+# ── strategy preset parameters ───────────────────────────────────────────────
+TREND_FAST_EMA = 50
+TREND_SLOW_EMA = 200
+TREND_WARMUP = 200          # EMA-200 needs seasoning before the cross is meaningful
+
+
+def _trend_signals(df: pd.DataFrame, warmup: int) -> list[str]:
+    """Trend-following: BUY while EMA-50 > EMA-200, else SELL (enter golden cross)."""
+    fast = df.get(f"EMA_{TREND_FAST_EMA}")
+    slow = df.get(f"EMA_{TREND_SLOW_EMA}")
+    signals: list[str] = []
+    for i in range(warmup, len(df)):
+        try:
+            signals.append("BUY" if float(fast.iloc[i]) > float(slow.iloc[i]) else "SELL")
+        except Exception:
+            signals.append("HOLD")
+    return signals
+
+
+MEANREV_RSI_BUY = 30        # RSI below this = oversold -> BUY
+MEANREV_RSI_SELL = 55       # RSI above this = reverted -> SELL
+
+
+def _meanrev_signals(df: pd.DataFrame, warmup: int) -> list[str]:
+    """Mean-reversion: BUY when RSI-14 < 30 (oversold), SELL when RSI-14 > 55."""
+    rsi = df.get("RSI_14")
+    signals: list[str] = []
+    for i in range(warmup, len(df)):
+        try:
+            r = float(rsi.iloc[i])
+            if r < MEANREV_RSI_BUY:
+                signals.append("BUY")
+            elif r > MEANREV_RSI_SELL:
+                signals.append("SELL")
+            else:
+                signals.append("HOLD")
+        except Exception:
+            signals.append("HOLD")
+    return signals
+
+
+BREAKOUT_HIGH_LOOKBACK = 20  # close above prior N-day high -> BUY
+BREAKOUT_LOW_LOOKBACK = 10   # close below prior M-day low -> SELL
+
+
+def _breakout_signals(df: pd.DataFrame, warmup: int) -> list[str]:
+    """Breakout: BUY when close > prior-20-day high, SELL when close < prior-10-day low.
+
+    Channels use .shift(1) so the current bar is NOT part of its own window (no look-ahead).
+    """
+    upper = df["High"].rolling(BREAKOUT_HIGH_LOOKBACK).max().shift(1)
+    lower = df["Low"].rolling(BREAKOUT_LOW_LOOKBACK).min().shift(1)
+    closes = df["Close"]
+    signals: list[str] = []
+    for i in range(warmup, len(df)):
+        try:
+            c = float(closes.iloc[i])
+            if c > float(upper.iloc[i]):
+                signals.append("BUY")
+            elif c < float(lower.iloc[i]):
+                signals.append("SELL")
+            else:
+                signals.append("HOLD")
+        except Exception:
             signals.append("HOLD")
     return signals
 
@@ -335,11 +420,21 @@ def _max_drawdown(equity_curve: list[dict]) -> float:
     return round(max_dd, 2)
 
 
+# Strategy name -> (signal generator, warmup bars). The v2 engine is shared.
+STRATEGIES = {
+    "indicator": (_indicator_signals, WARMUP),
+    "ml":        (_ml_signals,        ML_WARMUP),
+    "trend":     (_trend_signals,     TREND_WARMUP),
+    "meanrev":   (_meanrev_signals,   WARMUP),
+    "breakout":  (_breakout_signals,  WARMUP),
+}
+
+
 def run_backtest(df: pd.DataFrame, strategy: str = "indicator") -> dict:
-    if strategy not in STRATEGY_DESCRIPTIONS:
+    if strategy not in STRATEGIES:
         raise ValueError(f"Unknown strategy: {strategy!r}")
 
-    warmup = ML_WARMUP if strategy == "ml" else WARMUP
+    signal_fn, warmup = STRATEGIES[strategy]
 
     if strategy == "ml" and len(df) < ML_WARMUP + RETRAIN_EVERY:
         return _empty_result(
@@ -355,7 +450,7 @@ def run_backtest(df: pd.DataFrame, strategy: str = "indicator") -> dict:
     else:
         dates = [str(d)[:10] for d in df.index]
 
-    signals = _ml_signals(df, warmup) if strategy == "ml" else _indicator_signals(df, warmup)
+    signals = signal_fn(df, warmup)
 
     atr_full = _atr(df, ATR_PERIOD)
     ema_full = _ema(df["Close"].astype(float).values, TREND_EMA)

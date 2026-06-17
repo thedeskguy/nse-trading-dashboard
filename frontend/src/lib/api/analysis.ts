@@ -119,7 +119,7 @@ export interface BacktestStats {
   max_consecutive_losses: number;
 }
 
-export type BacktestStrategy = "indicator" | "ml";
+export type BacktestStrategy = "indicator" | "ml" | "trend" | "meanrev" | "breakout";
 
 export interface BacktestResponse {
   ticker: string;

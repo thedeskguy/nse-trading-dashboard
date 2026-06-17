@@ -29,3 +29,20 @@ def test_backtest_result_has_v2_fields():
     assert {"cagr_pct", "sortino_ratio", "calmar_ratio"} <= set(
         res["stats"]
     ), f"Missing v2 stats. Got: {set(res['stats'].keys())}"
+
+
+def test_backtest_trend_preset_shape():
+    """Verify that trend preset strategy returns v2 result schema."""
+    n = 260
+    closes = np.linspace(100, 200, n)
+    df = pd.DataFrame({
+        "Open": closes, "High": closes + 1, "Low": closes - 1,
+        "Close": closes, "Volume": [1_000_000] * n,
+    }, index=pd.date_range("2025-01-01", periods=n, freq="D"))
+
+    from tools.compute_indicators import compute_all
+    res = backtester.run_backtest(compute_all(df), strategy="trend")
+
+    assert res["error"] is None
+    assert res["strategy"] == "trend"
+    assert "open_position" in res

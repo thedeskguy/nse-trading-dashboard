@@ -230,13 +230,13 @@ walk-forward, long-only backtest on daily OHLCV (close-price fills, no look-ahea
 
 ### Strategies
 
-- **indicator** (default) — trades the composite technical signal (RSI, MACD, EMA trend,
-  Bollinger, S/R, OBV); BUY > 60 to enter, SELL < 40 to exit.
-- **ml** — trades a RandomForest next-day direction model retrained every 21 bars
-  walk-forward; enters at P(up) ≥ 55%, exits at P(up) ≤ 45%. Needs ≥ ~141 daily bars.
+- **indicator** (default) — composite technical-indicator signal (RSI, MACD, EMA trend, Bollinger, S/R, OBV); BUY > 60 to enter, SELL < 40 to exit.
+- **ml** — RandomForest model trained on indicator features; retrained every 21 bars walk-forward; enters at P(up) ≥ 55%, exits at P(up) ≤ 45%. Needs ≥ ~141 daily bars.
+- **trend** — trend-following: long while EMA-50 is above EMA-200 (golden-cross entry, death-cross exit).
+- **meanrev** — mean-reversion: BUY when RSI-14 < 30, SELL when RSI-14 > 55 (buys dips within uptrends due to the shared uptrend filter).
+- **breakout** — Donchian breakout: BUY on a close above the prior 20-day high, SELL on a close below the prior 10-day low.
 
-> **Planned (Phase B):** selectable strategy presets — trend-following, mean-reversion,
-> and breakout — are not yet implemented.
+All five strategies share the same v2 engine: uptrend filter (EMA-200), 2·ATR stop capped at 10%, 1:3 take-profit target, SELL-signal exit, and 1%-of-equity position sizing.
 
 ### v2 Engine Behaviour
 

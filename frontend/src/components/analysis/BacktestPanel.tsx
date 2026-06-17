@@ -24,6 +24,9 @@ const PERIOD_LABELS: Record<Period, string> = { "6mo": "6M", "1y": "1Y", "2y": "
 const STRATEGIES: Array<{ value: BacktestStrategy; label: string; icon: typeof Activity }> = [
   { value: "indicator", label: "Indicator", icon: Activity },
   { value: "ml", label: "ML Model", icon: Cpu },
+  { value: "trend", label: "Trend", icon: Activity },
+  { value: "meanrev", label: "Mean-Rev", icon: Activity },
+  { value: "breakout", label: "Breakout", icon: Activity },
 ];
 
 function OpenPositionCard({ position }: { position: OpenPosition }) {

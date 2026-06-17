@@ -19,7 +19,7 @@ router = APIRouter()
 
 _TICKER = Query(..., pattern=r"^[A-Z0-9.\-&]{1,30}$", description="Ticker e.g. RELIANCE.NS")
 _PERIOD  = Query("1y", pattern=r"^(1d|5d|1mo|3mo|6mo|1y|2y|5y|10y|ytd|max)$")
-_STRATEGY = Query("indicator", pattern=r"^(indicator|ml)$")
+_STRATEGY = Query("indicator", pattern=r"^(indicator|ml|trend|meanrev|breakout)$")
 
 
 @router.get("/analysis/fundamentals")
