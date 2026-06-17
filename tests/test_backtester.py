@@ -415,3 +415,16 @@ def test_breakout_signals_low_break_sells():
     closes = [100.0] * 25 + [89.0]     # close below prior-10-day low (100) -> SELL
     df = pd.DataFrame({"High": highs, "Low": lows, "Close": closes})
     assert _breakout_signals(df, warmup=20)[-1] == "SELL"
+
+
+# ── Task 4: STRATEGIES registry + run_backtest dispatch ──────────────────────
+def test_run_backtest_presets_end_to_end():
+    from tools.backtester import run_backtest
+    for strat in ("trend", "meanrev", "breakout"):
+        res = run_backtest(enriched(260), strategy=strat)
+        assert res["error"] is None, f"{strat} errored"
+        assert res["strategy"] == strat
+        assert "open_position" in res
+        assert {"cagr_pct", "sortino_ratio"} <= set(res["stats"])
+        for t in res["trades"]:
+            assert t["exit_reason"] in ("stop", "target", "signal")

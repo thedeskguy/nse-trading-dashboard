@@ -162,6 +162,23 @@ STRATEGY_DESCRIPTIONS = {
         "when P(up) ≤ 45%. Long-only, close-price fills."
         " Entries require an uptrend (close > EMA-200); exits on a 2·ATR stop (capped at 10% below entry), a 1:3 ATR take-profit, or the strategy's SELL signal; positions are risk-sized to 1% of equity."
     ),
+    "trend": (
+        "Trend-following: long while EMA-50 is above EMA-200 (enters at the golden "
+        "cross, exits at the death cross). Entries require an uptrend (close > EMA-200); "
+        "exits on a 2·ATR stop (capped at 10% below entry), a 1:3 ATR take-profit, or the "
+        "strategy's SELL signal; positions are risk-sized to 1% of equity."
+    ),
+    "meanrev": (
+        "Mean-reversion: BUY when RSI-14 < 30 (oversold), SELL when RSI-14 > 55. Combined "
+        "with the uptrend filter this buys dips in uptrends. Exits on a 2·ATR stop (capped "
+        "at 10% below entry), a 1:3 ATR take-profit, or the SELL signal; risk-sized to 1%."
+    ),
+    "breakout": (
+        "Breakout: BUY when price closes above its prior 20-day high, SELL when it closes "
+        "below its prior 10-day low. Entries require an uptrend (close > EMA-200); exits on "
+        "a 2·ATR stop (capped at 10% below entry), a 1:3 ATR take-profit, or the SELL "
+        "signal; positions are risk-sized to 1% of equity."
+    ),
 }
 
 
@@ -403,11 +420,21 @@ def _max_drawdown(equity_curve: list[dict]) -> float:
     return round(max_dd, 2)
 
 
+# Strategy name -> (signal generator, warmup bars). The v2 engine is shared.
+STRATEGIES = {
+    "indicator": (_indicator_signals, WARMUP),
+    "ml":        (_ml_signals,        ML_WARMUP),
+    "trend":     (_trend_signals,     TREND_WARMUP),
+    "meanrev":   (_meanrev_signals,   WARMUP),
+    "breakout":  (_breakout_signals,  WARMUP),
+}
+
+
 def run_backtest(df: pd.DataFrame, strategy: str = "indicator") -> dict:
-    if strategy not in STRATEGY_DESCRIPTIONS:
+    if strategy not in STRATEGIES:
         raise ValueError(f"Unknown strategy: {strategy!r}")
 
-    warmup = ML_WARMUP if strategy == "ml" else WARMUP
+    signal_fn, warmup = STRATEGIES[strategy]
 
     if strategy == "ml" and len(df) < ML_WARMUP + RETRAIN_EVERY:
         return _empty_result(
@@ -423,7 +450,7 @@ def run_backtest(df: pd.DataFrame, strategy: str = "indicator") -> dict:
     else:
         dates = [str(d)[:10] for d in df.index]
 
-    signals = _ml_signals(df, warmup) if strategy == "ml" else _indicator_signals(df, warmup)
+    signals = signal_fn(df, warmup)
 
     atr_full = _atr(df, ATR_PERIOD)
     ema_full = _ema(df["Close"].astype(float).values, TREND_EMA)
