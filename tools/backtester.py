@@ -280,6 +280,33 @@ def _meanrev_signals(df: pd.DataFrame, warmup: int) -> list[str]:
     return signals
 
 
+BREAKOUT_HIGH_LOOKBACK = 20  # close above prior N-day high -> BUY
+BREAKOUT_LOW_LOOKBACK = 10   # close below prior M-day low -> SELL
+
+
+def _breakout_signals(df: pd.DataFrame, warmup: int) -> list[str]:
+    """Breakout: BUY when close > prior-20-day high, SELL when close < prior-10-day low.
+
+    Channels use .shift(1) so the current bar is NOT part of its own window (no look-ahead).
+    """
+    upper = df["High"].rolling(BREAKOUT_HIGH_LOOKBACK).max().shift(1)
+    lower = df["Low"].rolling(BREAKOUT_LOW_LOOKBACK).min().shift(1)
+    closes = df["Close"]
+    signals: list[str] = []
+    for i in range(warmup, len(df)):
+        try:
+            c = float(closes.iloc[i])
+            if c > float(upper.iloc[i]):
+                signals.append("BUY")
+            elif c < float(lower.iloc[i]):
+                signals.append("SELL")
+            else:
+                signals.append("HOLD")
+        except Exception:
+            signals.append("HOLD")
+    return signals
+
+
 def _compute_stats(
     trades: list[dict],
     equity_curve: list[dict],

@@ -392,3 +392,26 @@ def test_meanrev_signals_oversold_buy_recovered_sell():
     df = pd.DataFrame({"RSI_14": [25.0, 40.0, 60.0, 28.0, 70.0]})
     # <30 -> BUY, 30..55 -> HOLD, >55 -> SELL
     assert _meanrev_signals(df, warmup=0) == ["BUY", "HOLD", "SELL", "BUY", "SELL"]
+
+
+# ── Task 3: _breakout_signals (Donchian 20/10) ───────────────────────────────
+from tools.backtester import _breakout_signals
+
+
+def test_breakout_signals_high_break_buys():
+    # 25 flat bars at 100, then a close above the prior-20-day high -> BUY
+    highs = [100.0] * 25 + [111.0]
+    lows = [100.0] * 25 + [111.0]
+    closes = [100.0] * 25 + [110.0]
+    df = pd.DataFrame({"High": highs, "Low": lows, "Close": closes})
+    sigs = _breakout_signals(df, warmup=20)
+    assert sigs[-1] == "BUY"           # last bar breaks out above prior-20 high (100)
+    assert set(sigs[:-1]) <= {"HOLD"}  # flat bars before the break don't signal
+
+
+def test_breakout_signals_low_break_sells():
+    highs = [100.0] * 25 + [100.0]
+    lows = [100.0] * 25 + [88.0]
+    closes = [100.0] * 25 + [89.0]     # close below prior-10-day low (100) -> SELL
+    df = pd.DataFrame({"High": highs, "Low": lows, "Close": closes})
+    assert _breakout_signals(df, warmup=20)[-1] == "SELL"
