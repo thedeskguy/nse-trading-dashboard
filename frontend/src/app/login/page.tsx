@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/dashboard";
@@ -21,8 +19,13 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const supabase = useMemo(() => createClient(), []);
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  // Uncontrolled inputs read from the form on submit — robust against the
+  // controlled-value reset that can drop text typed before client hydration.
+  const handleEmailLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const email = String(fd.get("email") ?? "").trim();
+    const password = String(fd.get("password") ?? "");
     setLoading(true);
     setError(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -99,10 +102,10 @@ function LoginForm() {
             <Label htmlFor="email" className="text-xs text-muted-foreground">Email</Label>
             <Input
               id="email"
+              name="email"
               type="email"
               placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               required
               className="rounded-xl h-11 border-border bg-muted/30"
             />
@@ -111,10 +114,10 @@ function LoginForm() {
             <Label htmlFor="password" className="text-xs text-muted-foreground">Password</Label>
             <Input
               id="password"
+              name="password"
               type="password"
               placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               required
               className="rounded-xl h-11 border-border bg-muted/30"
             />

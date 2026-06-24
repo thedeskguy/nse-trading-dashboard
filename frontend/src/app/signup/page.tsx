@@ -8,16 +8,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function SignupPage() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  // Email captured at submit time for the confirmation screen below.
+  const [sentEmail, setSentEmail] = useState("");
   const supabase = useMemo(() => createClient(), []);
 
-  const handleSignup = async (e: React.FormEvent) => {
+  // Uncontrolled inputs read from the form on submit — robust against the
+  // controlled-value reset that can drop text typed before client hydration.
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const name = String(fd.get("name") ?? "").trim();
+    const email = String(fd.get("email") ?? "").trim();
+    const password = String(fd.get("password") ?? "");
     setLoading(true);
     setError(null);
     const { error } = await supabase.auth.signUp({
@@ -29,6 +34,7 @@ export default function SignupPage() {
       setError(error.message);
       setLoading(false);
     } else {
+      setSentEmail(email);
       setDone(true);
     }
   };
@@ -51,7 +57,7 @@ export default function SignupPage() {
             </div>
             <h2 className="font-display text-xl font-bold mb-2">Check your email</h2>
             <p className="text-muted-foreground text-sm mb-6">
-              We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
+              We sent a confirmation link to <strong>{sentEmail}</strong>. Click it to activate your account.
             </p>
             <Link href="/login">
               <Button className="w-full rounded-xl bg-primary hover:bg-primary/90">Back to Sign In</Button>
@@ -95,15 +101,15 @@ export default function SignupPage() {
               {error && <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</div>}
               <div className="space-y-1.5">
                 <Label htmlFor="name" className="text-xs text-muted-foreground">Name</Label>
-                <Input id="name" type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required className="rounded-xl h-11 border-border bg-muted/30" />
+                <Input id="name" name="name" type="text" placeholder="Your name" autoComplete="name" required className="rounded-xl h-11 border-border bg-muted/30" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-xs text-muted-foreground">Email</Label>
-                <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-xl h-11 border-border bg-muted/30" />
+                <Input id="email" name="email" type="email" placeholder="you@example.com" autoComplete="email" required className="rounded-xl h-11 border-border bg-muted/30" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-xs text-muted-foreground">Password</Label>
-                <Input id="password" type="password" placeholder="Min 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className="rounded-xl h-11 border-border bg-muted/30" />
+                <Input id="password" name="password" type="password" placeholder="Min 8 characters" autoComplete="new-password" required minLength={8} className="rounded-xl h-11 border-border bg-muted/30" />
               </div>
               <Button type="submit" disabled={loading} className="w-full rounded-xl h-11 bg-primary hover:bg-primary/90 font-medium">
                 {loading ? "Creating account…" : "Create Account"}

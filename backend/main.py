@@ -91,12 +91,13 @@ settings = get_settings()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list + [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ],
+    # Production origins come from the CORS_ORIGINS env var (comma-separated).
+    allow_origins=settings.cors_origins_list,
+    # Allow any localhost / 127.0.0.1 port for local development, so the
+    # frontend dev server works regardless of which port it lands on, without
+    # hardcoding a port list. Low-risk: auth is Bearer-token (Authorization
+    # header), not cookies, so this does not widen credentialed-cookie access.
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
