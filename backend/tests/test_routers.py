@@ -219,3 +219,23 @@ def test_backtest_returns_expected_structure(client):
     assert "trades" in body
     assert "equity_curve" in body
     assert "stats" in body
+
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("origin", [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:3100",
+    "http://127.0.0.1:8080",
+])
+def test_cors_allows_any_localhost_port(client, origin):
+    """Any localhost / 127.0.0.1 port is allowed for local dev (regex)."""
+    r = client.get("/health", headers={"Origin": origin})
+    assert r.headers.get("access-control-allow-origin") == origin
+
+
+def test_cors_blocks_unknown_origin(client):
+    """A non-localhost origin not in CORS_ORIGINS is not reflected back."""
+    r = client.get("/health", headers={"Origin": "http://evil.example.com"})
+    assert r.headers.get("access-control-allow-origin") != "http://evil.example.com"
