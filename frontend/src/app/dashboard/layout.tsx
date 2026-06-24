@@ -21,7 +21,7 @@ export default async function DashboardLayout({
       <MobileNav />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6">{children}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">{children}</main>
       </div>
     </div>
   );

@@ -1,0 +1,22 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TradeDash">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="up" x1="0" y1="512" x2="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#60A5FA"/>
+    </linearGradient>
+  </defs>
+  <!-- Full-bleed square background: safe for maskable + apple-touch-icon -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- Bars, increasing height (bullish trend) -->
+  <rect x="148" y="300" width="56" height="80"  rx="14" fill="#3B82F6"/>
+  <rect x="228" y="244" width="56" height="136" rx="14" fill="url(#up)"/>
+  <rect x="308" y="176" width="56" height="204" rx="14" fill="#22C55E"/>
+  <!-- Upward trend line -->
+  <path d="M150 322 L256 262 L362 178" stroke="#E2E8F0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Arrow head at the top of the trend line -->
+  <path d="M362 178 L322 182 M362 178 L358 218" stroke="#E2E8F0" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
