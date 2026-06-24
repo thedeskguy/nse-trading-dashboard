@@ -58,7 +58,7 @@ export function TopBar() {
   };
 
   return (
-    <header className="h-14 shrink-0 border-b border-border flex items-center gap-3 px-5 bg-background/80 backdrop-blur-sm sticky top-0 z-20">
+    <header className="h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] box-border shrink-0 border-b border-border flex items-center gap-3 px-5 bg-background/80 backdrop-blur-sm sticky top-0 z-20">
       <div ref={containerRef} className="relative flex-1 max-w-xs">
         <Search
           size={13}
